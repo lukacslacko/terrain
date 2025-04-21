@@ -8,17 +8,17 @@ use bevy::render::render_resource::{TextureDimension, TextureFormat};
 pub fn init(width: usize, height: usize) {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(MapSize { width, height })
+        .insert_resource(MapState::new(width, height))
         .add_systems(Startup, setup)
         .add_systems(Update, update_image)
         .run();
 }
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_size: Res<MapSize>) {
+fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: Res<MapState>) {
     let image = Image::new_fill(
         Extent3d {
-            width: 256,
-            height: 256,
+            width: map_state.width as u32,
+            height: map_state.height as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -31,7 +31,6 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_size: Re
 
     commands.insert_resource(ImageHandle(image_handle.clone()));
     commands.insert_resource(GameTime { time: 0.0 });
-    commands.insert_resource(MapState::new(&map_size));
 
     commands.spawn(Sprite::from_image(image_handle));
 
