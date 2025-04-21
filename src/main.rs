@@ -9,7 +9,16 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
+        .add_systems(Update, update_image)
         .run();
+}
+
+#[derive(Resource)]
+struct ImageHandle(Handle<Image>);
+
+#[derive(Resource)]
+struct GameTime {
+    time: f32,
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
@@ -27,13 +36,37 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     for i in 0..256 {
         for j in 0..256 {
-            let pixel = image.pixel_bytes_mut(UVec3::new(i,j,0)).unwrap();
+            let pixel = image.pixel_bytes_mut(UVec3::new(i, j, 0)).unwrap();
             pixel[0] = i as u8;
             pixel[1] = j as u8;
         }
     }
 
-    commands.spawn(Sprite::from_image(images.add(image).clone()));
+    let image_handle = images.add(image).clone();
+
+    commands.insert_resource(ImageHandle(image_handle.clone()));
+    commands.insert_resource(GameTime{time: 0.0});
+
+    commands.spawn(Sprite::from_image(image_handle));
 
     commands.spawn(Camera2d);
+}
+
+fn update_image(
+    time: Res<Time>,
+    mut images: ResMut<Assets<Image>>,
+    image_handle: Res<ImageHandle>,
+    mut game_time: ResMut<GameTime>,
+) {
+    game_time.time += time.delta_secs();
+    let image = images.get_mut(&image_handle.0).unwrap();
+
+    for i in 0..256 {
+        for j in 0..256 {
+            let pixel = image.pixel_bytes_mut(UVec3::new(i, j, 0)).unwrap();
+            let shift = ((game_time.time / 5.0).fract() * 256.0) as u32;
+            pixel[0] = ((i + shift) % 256) as u8;
+            pixel[1] = ((j + shift) % 256) as u8;
+        }
+    }
 }
