@@ -1,6 +1,9 @@
 use crate::state::*;
 
 use bevy::asset::RenderAssetUsages;
+use bevy::input::common_conditions::*;
+use bevy::input::keyboard::{KeyCode, KeyboardInput};
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::{TextureDimension, TextureFormat};
@@ -11,8 +14,25 @@ pub fn init(width: usize, height: usize) {
         .insert_resource(MapState::new(width, height))
         .add_systems(Startup, setup)
         .add_systems(Update, update_image)
+        .add_systems(Update, pan_camera.run_if(input_pressed(MouseButton::Left)))
+        .add_systems(Update, zoom_camera_around_cursor)
+        .add_systems(
+            Update,
+            reset_zoom.run_if(input_just_pressed(KeyCode::Digit0)),
+        )
+        .add_systems(
+            Update,
+            zoom_in.run_if(input_just_pressed(KeyCode::NumpadAdd)),
+        )
+        .add_systems(
+            Update,
+            zoom_out.run_if(input_just_pressed(KeyCode::NumpadSubtract)),
+        )
         .run();
 }
+
+#[derive(Component)]
+struct MainCamera;
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: Res<MapState>) {
     let image = Image::new_fill(
@@ -34,7 +54,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: R
 
     commands.spawn(Sprite::from_image(image_handle));
 
-    commands.spawn(Camera2d);
+    commands.spawn((Camera2d, MainCamera));
 }
 
 fn update_image(
@@ -48,4 +68,43 @@ fn update_image(
     let image = images.get_mut(&image_handle.0).unwrap();
 
     map_state.update_image(image, game_time.time);
+}
+
+fn pan_camera(
+    mut motion_event_reader: EventReader<MouseMotion>,
+    mut query: Query<(&mut Transform, &MainCamera)>,
+) {
+    let mut transform = query.single_mut();
+    for event in motion_event_reader.read() {
+        transform.0.translation.x -= event.delta.x * transform.0.scale.x;
+        transform.0.translation.y += event.delta.y * transform.0.scale.y;
+    }
+}
+
+fn zoom_camera_around_cursor(
+    mut scroll_event_reader: EventReader<MouseWheel>,
+    mut query: Query<(&mut Transform, &MainCamera)>,
+) {
+    let mut transform = query.single_mut();
+    for event in scroll_event_reader.read() {
+        transform.0.scale.x *= 1.0 + event.y;
+        transform.0.scale.y *= 1.0 + event.y;
+    }
+}
+
+fn reset_zoom(mut query: Query<(&mut Transform, &MainCamera)>) {
+    let mut transform = query.single_mut();
+    transform.0.scale.x = 1.0;
+    transform.0.scale.y = 1.0
+}
+
+fn zoom_in(mut query: Query<(&mut Transform, &MainCamera)>) {
+    let mut transform = query.single_mut();
+    transform.0.scale.x /= 1.1;
+    transform.0.scale.y /= 1.1;
+}
+fn zoom_out(mut query: Query<(&mut Transform, &MainCamera)>) {
+    let mut transform = query.single_mut();
+    transform.0.scale.x *= 1.1;
+    transform.0.scale.y *= 1.1;
 }

@@ -28,7 +28,7 @@ impl MapState {
         for i in 0..self.width {
             for j in 0..self.height {
                 let pixel = image.pixel_bytes_mut(UVec3::new(i as u32, j as u32, 0)).unwrap();
-                let shift = ((time / 5.0).fract() * 256.0) as usize;
+                let shift = 0;
                 pixel[0] = ((i + shift) % 256) as u8;
                 pixel[1] = ((j + shift) % 256) as u8;
             }
