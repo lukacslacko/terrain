@@ -1,17 +1,16 @@
 pub fn height_map(w: usize, h: usize) -> Vec<Vec<f32>> {
-    // Create a height map with Perlin noise.
     let mut height_map = vec![vec![0.0; w]; h];
     let perlin = Perlin {
-        seed: 42,
+        seed: 123,
         frequency: 4.0,
-        lacunarity: 2.0,
+        lacunarity: 2.13,
         persistence: 0.5,
-        octaves: 6,
+        octaves: 4,
     };
     for y in 0..h {
         for x in 0..w {
-            let nx = x as f32 / w as f32 - 0.5;
-            let ny = y as f32 / h as f32 - 0.5;
+            let nx = x as f32 / w.max(h) as f32 - 0.5;
+            let ny = y as f32 / w.max(h) as f32 - 0.5;
             height_map[y][x] = perlin.noise(nx, ny);
         }
     }
@@ -27,7 +26,6 @@ struct Perlin {
 
 impl Perlin {
     fn noise(&self, x: f32, y: f32) -> f32 {
-        // Generate multi-layered Perlin noise based on the input coordinates.
         let mut total = 0.0;
         let mut frequency = self.frequency;
         let mut amplitude = self.persistence;
@@ -52,8 +50,10 @@ impl Perlin {
         let xf = x - xi as f32;
         let yf = y - yi as f32;
 
+        use std::f32::consts::PI;
+
         let fade = |x: f32| 3.0 * x * x - 2.0 * x * x * x;
-        let grad = Self::grad;
+        let grad = |h: f32, x, y| x * (2.0 * PI * h).cos() + y * (2.0 * PI * h).sin();
         let lerp = |t: f32, a: f32, b: f32| a + t * (b - a);
 
         let hash = |x: i32, y: i32| {
@@ -83,12 +83,5 @@ impl Perlin {
             lerp(u, grad(aa, xf, yf), grad(ba, xf - 1.0, yf)),
             lerp(u, grad(ab, xf, yf - 1.0), grad(bb, xf - 1.0, yf - 1.0)),
         )
-    }
-    fn grad(hash: f32, x: f32, y: f32) -> f32 {
-        // Gradient function to calculate the gradient vector.
-        use std::f32::consts::PI;
-        let u = (hash * 2.0 * PI).cos();
-        let v = (hash * 2.0 * PI).sin();
-        u * x + v * y
     }
 }
