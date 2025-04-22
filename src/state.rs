@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::terrain::height_map;
 
 #[derive(Resource)]
 pub struct ImageHandle(pub Handle<Image>);
@@ -20,19 +21,24 @@ impl MapState {
         MapState {
             width,
             height,
-            height_map: vec![vec![0.0; width]; height],
+            height_map: height_map(width, height),
         }
     }
 
-    pub fn update_image(&self, image: &mut Image, time: f32) {
+    pub fn update_image(&self, image: &mut Image) {
+        let min_height = self.height_map.iter().flatten().cloned().reduce(f32::min).unwrap();
+        let max_height = self.height_map.iter().flatten().cloned().reduce(f32::max).unwrap();
         for i in 0..self.width {
             for j in 0..self.height {
-                let pixel = image.pixel_bytes_mut(UVec3::new(i as u32, j as u32, 0)).unwrap();
-                let shift = 0;
-                pixel[0] = ((i + shift) % 256) as u8;
-                pixel[1] = ((j + shift) % 256) as u8;
+                let pixel = image
+                    .pixel_bytes_mut(UVec3::new(i as u32, j as u32, 0))
+                    .unwrap();
+                use std::f32::consts::PI;
+                let value = 2.0 * PI * ((self.height_map[j][i] - min_height) / (max_height - min_height));
+                pixel[0] = ((value.sin() + 1.0) * 127.5) as u8;
+                pixel[1] = (((value + 2.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
+                pixel[2] = (((value + 4.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
             }
         }
-
     }
 }

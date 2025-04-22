@@ -2,7 +2,7 @@ use crate::state::*;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::input::common_conditions::*;
-use bevy::input::keyboard::{KeyCode, KeyboardInput};
+use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::render::render_resource::Extent3d;
@@ -67,7 +67,7 @@ fn update_image(
     game_time.time += time.delta_secs();
     let image = images.get_mut(&image_handle.0).unwrap();
 
-    map_state.update_image(image, game_time.time);
+    map_state.update_image(image);
 }
 
 fn pan_camera(
