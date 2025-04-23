@@ -14,32 +14,35 @@ pub struct MapState {
     pub width: usize,
     pub height: usize,
     pub height_map: Vec<Vec<f32>>,
+    min_height: f32,
+    max_height: f32,
 }
 
 impl MapState {
     pub fn new(width: usize, height: usize) -> Self {
-        MapState {
-            width,
-            height,
-            height_map: height_map(width, height),
-        }
-    }
-
-    pub fn update_image(&self, image: &mut Image) {
-        let min_height = self
-            .height_map
+        let height_map = height_map(width, height);
+        let min_height = height_map
             .iter()
             .flatten()
             .cloned()
             .reduce(f32::min)
             .unwrap();
-        let max_height = self
-            .height_map
+        let max_height = height_map
             .iter()
             .flatten()
             .cloned()
             .reduce(f32::max)
             .unwrap();
+        MapState {
+            width,
+            height,
+            height_map,
+            min_height,
+            max_height,
+        }
+    }
+
+    pub fn update_image(&self, image: &mut Image) {
         for i in 0..self.width {
             for j in 0..self.height {
                 let pixel = image
@@ -47,21 +50,27 @@ impl MapState {
                     .unwrap();
                 let level = |x: f32| (x * 10.0).floor();
                 if i + 1 < self.width
-                    && j + 1 < self.height 
-                    && (level(self.height_map[i][j]) != level(self.height_map[i + 1][j])
-                        || level(self.height_map[i][j]) != level(self.height_map[i][j + 1]))
+                    && j + 1 < self.height
+                    && (level(self.height_map[j][i]) != level(self.height_map[j + 1][i])
+                        || level(self.height_map[j][i]) != level(self.height_map[j][i + 1]))
                 {
                     pixel[0] = 255;
                     pixel[1] = 255;
                     pixel[2] = 255;
                 } else {
-                    use std::f32::consts::PI;
-                    let value = 2.0
-                        * PI
-                        * ((self.height_map[j][i] - min_height) / (max_height - min_height));
-                    pixel[0] = ((value.sin() + 1.0) * 127.5) as u8;
-                    pixel[1] = (((value + 2.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
-                    pixel[2] = (((value + 4.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
+                    // use std::f32::consts::PI;
+                    // let value = 2.0
+                    //     * PI
+                    //     * ((self.height_map[j][i] - self.min_height) / (self.max_height - self.min_height));
+                    // pixel[0] = ((value.sin() + 1.0) * 127.5) as u8;
+                    // pixel[1] = (((value + 2.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
+                    // pixel[2] = (((value + 4.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
+
+                    let value = (self.height_map[j][i] - self.min_height)
+                        / (self.max_height - self.min_height);
+                    pixel[0] = (value * value * 255.0) as u8;
+                    pixel[1] = (value * 255.0) as u8;
+                    pixel[2] = (4.0 * (value - 0.5) * (value - 0.5) * 255.0) as u8;
                 }
             }
         }
