@@ -13,7 +13,6 @@ pub fn init(width: usize, height: usize) {
         .add_plugins(DefaultPlugins)
         .insert_resource(MapState::new(width, height))
         .add_systems(Startup, setup)
-        .add_systems(Update, update_image)
         .add_systems(Update, pan_camera.run_if(input_pressed(MouseButton::Left)))
         .add_systems(Update, zoom_camera_around_cursor)
         .add_systems(
@@ -35,7 +34,7 @@ pub fn init(width: usize, height: usize) {
 struct MainCamera;
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: Res<MapState>) {
-    let image = Image::new_fill(
+    let mut image = Image::new_fill(
         Extent3d {
             width: map_state.width as u32,
             height: map_state.height as u32,
@@ -46,6 +45,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: R
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
+    map_state.render_image(&mut image);
 
     let image_handle = images.add(image).clone();
 
@@ -55,20 +55,6 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: R
     commands.spawn(Sprite::from_image(image_handle));
 
     commands.spawn((Camera2d, MainCamera));
-}
-
-fn update_image(
-    time: Res<Time>,
-    mut images: ResMut<Assets<Image>>,
-    image_handle: Res<ImageHandle>,
-    mut game_time: ResMut<GameTime>,
-    map_state: Res<MapState>,
-) {
-    game_time.time += time.delta_secs();
-    let image = images.get_mut(&image_handle.0).unwrap();
-    println!("FPS: {}", 1.0 / time.delta_secs());
-
-    map_state.update_image(image);
 }
 
 fn pan_camera(

@@ -42,7 +42,7 @@ impl MapState {
         }
     }
 
-    pub fn update_image(&self, image: &mut Image) {
+    pub fn render_image(&self, image: &mut Image) {
         for i in 0..self.width {
             for j in 0..self.height {
                 let pixel = image
