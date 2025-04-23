@@ -66,6 +66,7 @@ fn update_image(
 ) {
     game_time.time += time.delta_secs();
     let image = images.get_mut(&image_handle.0).unwrap();
+    println!("FPS: {}", 1.0 / time.delta_secs());
 
     map_state.update_image(image);
 }
