@@ -23,7 +23,7 @@ pub struct MapState {
 
 impl MapState {
     pub fn new(width: usize, height: usize) -> Self {
-        let height_map = height_map(width, height);
+        let mut height_map = height_map(width, height);
         let mut points_with_height = Vec::new();
         let mut lake_id: Vec<Vec<usize>> = vec![vec![0; width]; height];
         let mut actual_lake_id = HashMap::new();
@@ -149,6 +149,14 @@ impl MapState {
             }
         }
 
+        for row in 0..height {
+            for col in 0..width {
+                if lake_id[row][col] != 0 {
+                    height_map[row][col] = lake_level[&actual_lake_id[&lake_id[row][col]]];
+                }
+            }
+        }
+
         let min_height = height_map
             .iter()
             .flatten()
@@ -179,7 +187,11 @@ impl MapState {
                     .pixel_bytes_mut(UVec3::new(i as u32, j as u32, 0))
                     .unwrap();
                 let level = |x: f32| (x * 30.0).floor();
-                if i + 1 < self.width
+                let value =
+                    (self.height_map[j][i] - self.min_height) / (self.max_height - self.min_height);
+                let should_draw_level_lines = false;
+                if should_draw_level_lines
+                    && i + 1 < self.width
                     && j + 1 < self.height
                     && (level(self.height_map[j][i]) != level(self.height_map[j + 1][i])
                         || level(self.height_map[j][i]) != level(self.height_map[j][i + 1]))
@@ -192,9 +204,9 @@ impl MapState {
                     pixel[1] = 0;
                     pixel[2] = 255;
                 } else if self.is_water[j][i] {
-                    pixel[0] = 255;
-                    pixel[1] = 255;
-                    pixel[2] = 0;
+                    pixel[0] = 0;
+                    pixel[1] = 0;
+                    pixel[2] = 255;
                 } else {
                     // use std::f32::consts::PI;
                     // let value = 2.0
@@ -204,8 +216,6 @@ impl MapState {
                     // pixel[1] = (((value + 2.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
                     // pixel[2] = (((value + 4.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
 
-                    let value = (self.height_map[j][i] - self.min_height)
-                        / (self.max_height - self.min_height);
                     pixel[0] = (value * 255.0) as u8;
                     pixel[1] = (value * 255.0) as u8;
                     pixel[2] = (value * 255.0) as u8;
