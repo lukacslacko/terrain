@@ -3,5 +3,5 @@ mod terrain;
 mod ui;
 mod state;
 fn main() {
-    ui::init(768, 768);
+    ui::init(1024, 768);
 }
