@@ -16,13 +16,14 @@ pub struct MapState {
     pub height: usize,
     pub height_map: Vec<Vec<f32>>,
     is_water: Vec<Vec<bool>>,
+    lake_id: Vec<Vec<usize>>,
     min_height: f32,
     max_height: f32,
 }
 
 impl MapState {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut height_map = height_map(width, height);
+        let height_map = height_map(width, height);
         let mut points_with_height = Vec::new();
         let mut lake_id: Vec<Vec<usize>> = vec![vec![0; width]; height];
         let mut actual_lake_id = HashMap::new();
@@ -30,6 +31,7 @@ impl MapState {
         actual_lake_id.insert(0, 0);
         let mut lake_level = HashMap::new();
         let mut next_lake_id = 1;
+        let mut is_water = vec![vec![false; width]; height];
         for col in 0..width {
             for row in 0..height {
                 points_with_height.push((height_map[row][col], row, col));
@@ -66,6 +68,7 @@ impl MapState {
             }
             if neighbor_lake_ids.is_empty() {
                 lake_id[row][col] = next_lake_id;
+                is_water[row][col] = true;
                 println!("Lakes: {}", next_lake_id);
                 actual_lake_id.insert(next_lake_id, next_lake_id);
                 lake_level.insert(next_lake_id, h);
@@ -73,14 +76,49 @@ impl MapState {
                 continue;
             }
             if neighbor_lake_ids.contains(&0) {
-                // TODO check if there's a non-zero neighbor, too.
-                // In that case, this is where the lake drains, and we
-                // should track the river from here down.
+                let mut river = false;
                 for other_lake_id in neighbor_lake_ids.iter() {
                     if *other_lake_id == 0 {
                         continue;
                     }
+                    if overflown_lakes.contains(other_lake_id) {
+                        continue;
+                    }
                     overflown_lakes.insert(*other_lake_id);
+                    river = true;
+                }
+                if river {
+                    let mut r = row;
+                    let mut c = col;
+                    while !is_edge(r, c) {
+                        is_water[r][c] = true;
+                        println!("Row: {}, Col: {}", r, c);
+                        let neighbors = [
+                            (r.saturating_sub(1), c),
+                            ((r + 1).min(height - 1), c),
+                            (r, c.saturating_sub(1)),
+                            (r, (c + 1).min(width - 1)),
+                        ];
+                        let non_same_lake_lower_neighbors = neighbors
+                            .iter()
+                            .filter(|&&(nr, nc)| {
+                                height_map[nr][nc] < height_map[r][c]
+                                    && (actual_lake_id[&lake_id[nr][nc]] == 0
+                                        || !neighbor_lake_ids
+                                            .contains(&actual_lake_id[&lake_id[nr][nc]]))
+                            })
+                            .collect::<Vec<_>>();
+                        if non_same_lake_lower_neighbors.is_empty() {
+                            break;
+                        }
+                        let lowest_neighbor = non_same_lake_lower_neighbors
+                            .iter()
+                            .map(|&&(r, c)| (height_map[r][c], r, c))
+                            .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+                            .unwrap();
+                        r = lowest_neighbor.1;
+                        c = lowest_neighbor.2;
+                    }
                 }
                 lake_id[row][col] = 0;
                 continue;
@@ -101,6 +139,7 @@ impl MapState {
                 .min()
                 .unwrap();
             lake_id[row][col] = smallest_lake_id;
+            is_water[row][col] = true;
             lake_level.insert(smallest_lake_id, h);
             for other_lake_id in non_overflow_neighbor_lake_ids {
                 if other_lake_id == smallest_lake_id {
@@ -110,16 +149,6 @@ impl MapState {
             }
         }
 
-        let mut is_water = vec![vec![false; width]; height];
-        for row in 0..height {
-            for col in 0..width {
-                if lake_id[row][col] == 0 {
-                    continue;
-                }
-                is_water[row][col] = true;
-                // height_map[row][col] = lake_level[&actual_lake_id[&lake_id[row][col]]]
-            }
-        }
         let min_height = height_map
             .iter()
             .flatten()
@@ -139,6 +168,7 @@ impl MapState {
             min_height,
             max_height,
             is_water,
+            lake_id,
         }
     }
 
@@ -157,9 +187,14 @@ impl MapState {
                     pixel[0] = 255;
                     pixel[1] = 255;
                     pixel[2] = 255;
+                } else if self.lake_id[j][i] != 0 {
+                    pixel[0] = 0;
+                    pixel[1] = 0;
+                    pixel[2] = 255;
                 } else if self.is_water[j][i] {
-                    pixel[0] = 64;
-                    pixel[1] = 64;
+                    pixel[0] = 255;
+                    pixel[1] = 255;
+                    pixel[2] = 0;
                 } else {
                     // use std::f32::consts::PI;
                     // let value = 2.0
