@@ -1,7 +1,6 @@
+use crate::dijkstra::{self, Dijkstra, Path};
 use crate::terrain::height_map;
 use bevy::prelude::*;
-use ordered_float::OrderedFloat;
-use priority_queue::PriorityQueue;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Resource)]
@@ -14,15 +13,9 @@ pub struct GameTime {
 
 #[derive(Resource)]
 pub struct MapState {
-    pub width: usize,
-    pub height: usize,
-    pub height_map: Vec<Vec<f32>>,
-    is_water: Vec<Vec<bool>>,
-    lake_id: Vec<Vec<usize>>,
+    pub dijkstra: Dijkstra,
     min_height: f32,
     max_height: f32,
-    road_level: Vec<Vec<i32>>,
-    house_level: Vec<Vec<i32>>,
 }
 
 impl MapState {
@@ -188,127 +181,55 @@ impl MapState {
             .cloned()
             .reduce(f32::max)
             .unwrap();
-        MapState {
+        let dijkstra = Dijkstra {
             width,
             height,
             height_map,
-            min_height,
-            max_height,
             is_water,
-            lake_id,
             road_level: vec![vec![0; width]; height],
             house_level: vec![vec![0; width]; height],
+        };
+        MapState {
+            dijkstra,
+            min_height,
+            max_height,
         }
     }
 
-    pub fn connect(&mut self, a: (usize, usize), b: (usize, usize), image: &mut Image) {
-        let cost_of_step_on_road = OrderedFloat(1.0);
-        let cost_of_build_road = OrderedFloat(10.0);
-        let cost_of_build_bridge = OrderedFloat(100.0);
-        let cost_of_climb_multiplier = OrderedFloat(10000.0);
-
-        let mut dist = HashMap::new();
-        let mut come_from = HashMap::new();
-        let mut visited = HashSet::new();
-        let mut queue = PriorityQueue::new();
-
-        dist.insert(a, OrderedFloat(0.0));
-        queue.push(a, OrderedFloat(0.0));
-
-        while let Some((current, current_dist)) = queue.pop() {
-            if visited.contains(&current) {
-                continue;
-            }
-            visited.insert(current);
-            if visited.len() % 10000 == 0 {
-                println!("Queue size: {}, visited: {}", queue.len(), visited.len());
-            }
-            if current == b {
-                break;
-            }
-            let mut neighbors = Vec::new();
-            for dr in -1..=1 {
-                for dc in -1..=1 {
-                    if dr == 0 && dc == 0 {
-                        continue;
-                    }
-                    let inr = current.0 as isize + dr;
-                    let inc = current.1 as isize + dc;
-                    if inr < 0
-                        || inc < 0
-                        || inr >= self.height as isize
-                        || inc >= self.width as isize
-                    {
-                        continue;
-                    }
-                    let nr = inr as usize;
-                    let nc = inc as usize;
-                    if self.house_level[nr][nc] != 0 {
-                        continue;
-                    }
-                    let steepness_cost = OrderedFloat(
-                        (self.height_map[nr][nc] - self.height_map[current.0][current.1]).abs(),
-                    ) * cost_of_climb_multiplier;
-                    if self.road_level[nr][nc] != 0 {
-                        neighbors.push((cost_of_step_on_road + steepness_cost, (nr, nc)));
-                        continue;
-                    }
-                    if self.is_water[nr][nc] {
-                        neighbors.push((cost_of_build_bridge + steepness_cost, (nr, nc)));
-                        continue;
-                    }
-                    neighbors.push((cost_of_build_road + steepness_cost, (nr, nc)));
-                }
-            }
-            for (cost, neighbor) in neighbors {
-                let new_dist = current_dist - cost;
-                if new_dist > *dist.get(&neighbor).unwrap_or(&OrderedFloat(f32::MIN)) {
-                    dist.insert(neighbor, new_dist);
-                    come_from.insert(neighbor, current);
-                    queue.push(neighbor, new_dist);
-                }
-            }
-        }
-        let mut curr = b;
-        while let Some((r, c)) = come_from.get(&curr) {
-            if *r == a.0 && *c == a.1 {
-                break;
-            }
+    pub fn process_path(&mut self, path: &Path, image: &mut Image) {
+        for (row, col) in path.0.iter() {
+            self.dijkstra.road_level[*row][*col] += 1;
             let pixel = image
-                .pixel_bytes_mut(UVec3::new(*c as u32, *r as u32, 0))
+                .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
                 .unwrap();
             pixel[0] = 255;
             pixel[1] = 0;
             pixel[2] = 0;
-            self.road_level[*r][*c] += 1;
-            curr = (*r, *c);
         }
     }
 
     pub fn render_image(&self, image: &mut Image) {
-        for i in 0..self.width {
-            for j in 0..self.height {
+        for i in 0..self.dijkstra.width {
+            for j in 0..self.dijkstra.height {
                 let pixel = image
                     .pixel_bytes_mut(UVec3::new(i as u32, j as u32, 0))
                     .unwrap();
                 let level = |x: f32| (x * 30.0).floor();
-                let value =
-                    (self.height_map[j][i] - self.min_height) / (self.max_height - self.min_height);
+                let value = (self.dijkstra.height_map[j][i] - self.min_height)
+                    / (self.max_height - self.min_height);
                 let should_draw_level_lines = true;
                 if should_draw_level_lines
-                    && i + 1 < self.width
-                    && j + 1 < self.height
-                    && (level(self.height_map[j][i]) != level(self.height_map[j + 1][i])
-                        || level(self.height_map[j][i]) != level(self.height_map[j][i + 1]))
+                    && i + 1 < self.dijkstra.width
+                    && j + 1 < self.dijkstra.height
+                    && (level(self.dijkstra.height_map[j][i])
+                        != level(self.dijkstra.height_map[j + 1][i])
+                        || level(self.dijkstra.height_map[j][i])
+                            != level(self.dijkstra.height_map[j][i + 1]))
                 {
                     pixel[0] = 255;
                     pixel[1] = 255;
                     pixel[2] = 255;
-                } else if self.lake_id[j][i] != 0 {
-                    pixel[0] = 0;
-                    pixel[1] = 0;
-                    pixel[2] = 255;
-                } else if self.is_water[j][i] {
+                } else if self.dijkstra.is_water[j][i] {
                     pixel[0] = 0;
                     pixel[1] = 0;
                     pixel[2] = 255;

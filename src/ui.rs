@@ -1,15 +1,18 @@
+use crate::dijkstra::Path;
 use crate::state::*;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::input::common_conditions::*;
 use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy::prelude::*;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::{TextureDimension, TextureFormat};
+use bevy::{image, prelude::*};
+use crossbeam_channel::{Receiver, bounded};
 
 pub fn init(width: usize, height: usize) {
     App::new()
+        .add_event::<DijkstraEvent>()
         .add_plugins(DefaultPlugins)
         .insert_resource(MapState::new(width, height))
         .add_systems(Startup, setup)
@@ -27,21 +30,46 @@ pub fn init(width: usize, height: usize) {
             Update,
             zoom_out.run_if(input_just_pressed(KeyCode::NumpadSubtract)),
         )
+        .add_systems(FixedUpdate, read_dijkstra_stream)
+        .add_systems(Update, process_new_paths)
         .run();
 }
 
 #[derive(Component)]
 struct MainCamera;
 
-fn setup(
-    mut commands: Commands,
+#[derive(Resource, Deref)]
+struct DijkstraReceiver(Receiver<Path>);
+
+#[derive(Event)]
+struct DijkstraEvent(Path);
+
+fn read_dijkstra_stream(
+    dijkstra_receiver: Res<DijkstraReceiver>,
+    mut event_writer: EventWriter<DijkstraEvent>,
+) {
+    for path in dijkstra_receiver.try_iter() {
+        event_writer.send(DijkstraEvent(path));
+    }
+}
+
+fn process_new_paths(
+    mut event_reader: EventReader<DijkstraEvent>,
+    image_handle: Res<ImageHandle>,
     mut images: ResMut<Assets<Image>>,
     mut map_state: ResMut<MapState>,
 ) {
+    let image = images.get_mut(&image_handle.0).unwrap();
+    for event in event_reader.read() {
+        map_state.process_path(&event.0, image);
+    }
+}
+
+fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: Res<MapState>) {
     let mut image = Image::new_fill(
         Extent3d {
-            width: map_state.width as u32,
-            height: map_state.height as u32,
+            width: map_state.dijkstra.width as u32,
+            height: map_state.dijkstra.height as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -50,23 +78,15 @@ fn setup(
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
     map_state.render_image(&mut image);
-    {
-        let end = (map_state.height * 4 / 5, map_state.width * 4 / 5);
-        let start = (map_state.height / 5, map_state.width / 5);
-        map_state.connect(start, end, &mut image);
-    }
-    {
-        let end = (map_state.height / 5, map_state.width * 4 / 5);
-        let start = (map_state.height * 4 / 5, map_state.width / 5);
-        map_state.connect(start, end, &mut image);
-    }
-    {
-        let end = (map_state.height * 2 / 5, map_state.width / 5);
-        let start = (map_state.height / 5, map_state.width * 4 / 5);
-        map_state.connect(start, end, &mut image);
-    }
 
     let image_handle = images.add(image).clone();
+
+    let (tx, rx) = bounded::<Path>(1);
+    let other_dijkstra = map_state.dijkstra.clone();
+    std::thread::spawn(move || {
+        other_dijkstra.connect((100, 100), (500, 500), tx);
+    });
+    commands.insert_resource(DijkstraReceiver(rx));
 
     commands.insert_resource(ImageHandle(image_handle.clone()));
     commands.insert_resource(GameTime { time: 0.0 });

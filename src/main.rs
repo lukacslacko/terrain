@@ -1,3 +1,4 @@
+mod dijkstra;
 mod state;
 mod terrain;
 mod ui;

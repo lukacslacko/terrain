@@ -3787,6 +3787,7 @@ name = "terrain"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "crossbeam-channel",
  "ordered-float",
  "priority-queue",
 ]
