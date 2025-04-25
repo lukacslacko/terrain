@@ -202,9 +202,18 @@ impl MapState {
             let pixel = image
                 .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
                 .unwrap();
-            pixel[0] = 255;
+            pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
             pixel[1] = 0;
             pixel[2] = 0;
+        }
+        for (row, col) in update.houses.iter() {
+            self.dijkstra.house_level[*row][*col] += 1;
+            let pixel = image
+                .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
+                .unwrap();
+            pixel[0] = 255;
+            pixel[1] = 255;
+            pixel[2] = 255;
         }
     }
 
@@ -226,9 +235,9 @@ impl MapState {
                         || level(self.dijkstra.height_map[j][i])
                             != level(self.dijkstra.height_map[j][i + 1]))
                 {
-                    pixel[0] = 255;
-                    pixel[1] = 255;
-                    pixel[2] = 255;
+                    pixel[0] = (value * 90.0) as u8;
+                    pixel[1] = (value * 180.0) as u8;
+                    pixel[2] = (value * 90.0) as u8;
                 } else if self.dijkstra.is_water[j][i] {
                     pixel[0] = 0;
                     pixel[1] = 0;
@@ -242,9 +251,9 @@ impl MapState {
                     // pixel[1] = (((value + 2.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
                     // pixel[2] = (((value + 4.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
 
-                    pixel[0] = (value * 255.0) as u8;
-                    pixel[1] = (value * 255.0) as u8;
-                    pixel[2] = (value * 255.0) as u8;
+                    pixel[0] = (value * 100.0) as u8;
+                    pixel[1] = (value * 200.0) as u8;
+                    pixel[2] = (value * 100.0) as u8;
                 }
             }
         }

@@ -22,22 +22,88 @@ pub struct DijkstraUpdate {
 impl Dijkstra {
     pub fn connect(&mut self, tx: Sender<DijkstraUpdate>) {
         let mut rng = rand::rng();
+        let mut houses = HashSet::new();
+        for _ in 0..5 {
+            houses.insert(loop {
+                let r = rng.random_range(0..self.height);
+                let c = rng.random_range(0..self.width);
+                if self.is_water[r][c] {
+                    continue;
+                }
+                break (r, c);
+            });
+        }
         loop {
-            self.connect_once(
-                (
-                    rng.random_range(0..self.height),
-                    rng.random_range(0..self.width),
-                ),
-                (
-                    rng.random_range(0..self.height),
-                    rng.random_range(0..self.width),
-                ),
+            let path = self.connect_once(
+                *houses.iter().choose(&mut rng).unwrap(),
+                *houses.iter().choose(&mut rng).unwrap(),
                 &tx,
             );
+            if path.is_empty() {
+                continue;
+            }
+            for _ in 0..1 {
+                let midpoint = path.choose(&mut rng).unwrap();
+                let mut maybe_new_houses = Vec::new();
+                for dr in -1..=1 {
+                    for dc in -1..=1 {
+                        if dr == 0 && dc == 0 {
+                            continue;
+                        }
+                        let inr = midpoint.0 as isize + dr;
+                        let inc = midpoint.1 as isize + dc;
+                        if inr < 0
+                            || inc < 0
+                            || inr >= self.height as isize
+                            || inc >= self.width as isize
+                        {
+                            continue;
+                        }
+                        let nr = inr as usize;
+                        let nc = inc as usize;
+                        if !self.is_water[nr][nc]
+                            && self.house_level[nr][nc] == 0
+                            && self.road_level[nr][nc] == 0
+                        {
+                            maybe_new_houses.push((nr, nc));
+                        }
+                    }
+                }
+                if maybe_new_houses.is_empty() {
+                    continue;
+                }
+                let new_house = maybe_new_houses.choose(&mut rng).unwrap().clone();
+                houses.insert(new_house);
+                self.house_level[new_house.0][new_house.1] = 1;
+            }
+            let random_house = houses.iter().choose(&mut rng).unwrap().clone();
+            self.house_level[random_house.0][random_house.1] = 0;
+            houses.remove(&random_house);
+            let moved_house = loop {
+                let r = rng.random_range(0..self.height);
+                let c = rng.random_range(0..self.width);
+                if self.is_water[r][c] {
+                    continue;
+                }
+                break (r, c);
+            };
+            self.house_level[moved_house.0][moved_house.1] = 1;
+            houses.insert(moved_house);
         }
     }
 
-    fn connect_once(&mut self, a: (usize, usize), b: (usize, usize), tx: &Sender<DijkstraUpdate>) {
+    fn connect_once(
+        &mut self,
+        a: (usize, usize),
+        b: (usize, usize),
+        tx: &Sender<DijkstraUpdate>,
+    ) -> Vec<(usize, usize)> {
+        if self.is_water[a.0][a.1] || self.is_water[b.0][b.1] {
+            return Vec::new();
+        }
+        if a == b {
+            return Vec::new();
+        }
         println!("Connecting {:?} to {:?}", a, b);
         let cost_of_step_on_road = OrderedFloat(1.0);
         let cost_of_build_road = OrderedFloat(10.0);
@@ -106,17 +172,22 @@ impl Dijkstra {
         let mut curr = b;
         let mut path = Vec::new();
         while let Some((r, c)) = come_from.get(&curr) {
-            path.push((*r, *c));
             if *r == a.0 && *c == a.1 {
                 break;
             }
+            path.push((*r, *c));
             curr = (*r, *c);
-            self.road_level[*r][*c] += 1;
+            self.road_level[*r][*c] = 1;
         }
+        self.house_level[a.0][a.1] = 1;
+        self.house_level[b.0][b.1] = 1;
+        self.road_level[a.0][a.1] = 0;
+        self.road_level[b.0][b.1] = 0;
         println!("Path length: {}", path.len());
         let _ = tx.send(DijkstraUpdate {
-            path,
-            houses: vec![],
+            path: path.clone(),
+            houses: vec![a, b],
         });
+        return path;
     }
 }
