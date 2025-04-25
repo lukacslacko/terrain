@@ -1,13 +1,13 @@
-use crate::dijkstra::Path;
+use crate::dijkstra::DijkstraUpdate;
 use crate::state::*;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::input::common_conditions::*;
 use bevy::input::keyboard::KeyCode;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
+use bevy::prelude::*;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::{TextureDimension, TextureFormat};
-use bevy::{image, prelude::*};
 use crossbeam_channel::{Receiver, bounded};
 
 pub fn init(width: usize, height: usize) {
@@ -31,7 +31,7 @@ pub fn init(width: usize, height: usize) {
             zoom_out.run_if(input_just_pressed(KeyCode::NumpadSubtract)),
         )
         .add_systems(FixedUpdate, read_dijkstra_stream)
-        .add_systems(Update, process_new_paths)
+        .add_systems(Update, process_dijkstra_updates)
         .run();
 }
 
@@ -39,21 +39,21 @@ pub fn init(width: usize, height: usize) {
 struct MainCamera;
 
 #[derive(Resource, Deref)]
-struct DijkstraReceiver(Receiver<Path>);
+struct DijkstraReceiver(Receiver<DijkstraUpdate>);
 
 #[derive(Event)]
-struct DijkstraEvent(Path);
+struct DijkstraEvent(DijkstraUpdate);
 
 fn read_dijkstra_stream(
     dijkstra_receiver: Res<DijkstraReceiver>,
     mut event_writer: EventWriter<DijkstraEvent>,
 ) {
-    for path in dijkstra_receiver.try_iter() {
+    if let Ok(path) = dijkstra_receiver.try_recv() {
         event_writer.send(DijkstraEvent(path));
     }
 }
 
-fn process_new_paths(
+fn process_dijkstra_updates(
     mut event_reader: EventReader<DijkstraEvent>,
     image_handle: Res<ImageHandle>,
     mut images: ResMut<Assets<Image>>,
@@ -61,7 +61,7 @@ fn process_new_paths(
 ) {
     let image = images.get_mut(&image_handle.0).unwrap();
     for event in event_reader.read() {
-        map_state.process_path(&event.0, image);
+        map_state.process_dijsktra_update(&event.0, image);
     }
 }
 
@@ -81,7 +81,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: R
 
     let image_handle = images.add(image).clone();
 
-    let (tx, rx) = bounded::<Path>(1);
+    let (tx, rx) = bounded::<DijkstraUpdate>(1);
     let other_dijkstra = map_state.dijkstra.clone();
     std::thread::spawn(move || {
         other_dijkstra.connect((100, 100), (500, 500), tx);

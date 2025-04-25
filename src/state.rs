@@ -1,4 +1,4 @@
-use crate::dijkstra::{self, Dijkstra, Path};
+use crate::dijkstra::{Dijkstra, DijkstraUpdate};
 use crate::terrain::height_map;
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -196,8 +196,8 @@ impl MapState {
         }
     }
 
-    pub fn process_path(&mut self, path: &Path, image: &mut Image) {
-        for (row, col) in path.0.iter() {
+    pub fn process_dijsktra_update(&mut self, update: &DijkstraUpdate, image: &mut Image) {
+        for (row, col) in update.path.iter() {
             self.dijkstra.road_level[*row][*col] += 1;
             let pixel = image
                 .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))

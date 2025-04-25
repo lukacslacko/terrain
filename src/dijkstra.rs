@@ -13,10 +13,17 @@ pub struct Dijkstra {
     pub house_level: Vec<Vec<i32>>,
 }
 
-pub struct Path(pub Vec<(usize, usize)>);
+pub struct DijkstraUpdate {
+    pub path: Vec<(usize, usize)>,
+    pub houses: Vec<(usize, usize)>,
+}
 
 impl Dijkstra {
-    pub fn connect(&self, a: (usize, usize), b: (usize, usize), tx: Sender<Path>) {
+    pub fn connect(&self, a: (usize, usize), b: (usize, usize), tx: Sender<DijkstraUpdate>) {
+        self.connect_once(a, b, tx);
+    }
+
+    fn connect_once(&self, a: (usize, usize), b: (usize, usize), tx: Sender<DijkstraUpdate>) {
         let cost_of_step_on_road = OrderedFloat(1.0);
         let cost_of_build_road = OrderedFloat(10.0);
         let cost_of_build_bridge = OrderedFloat(100.0);
@@ -90,6 +97,9 @@ impl Dijkstra {
             }
             curr = (*r, *c);
         }
-        let _ = tx.send(Path(path));
+        let _ = tx.send(DijkstraUpdate {
+            path,
+            houses: vec![],
+        });
     }
 }
