@@ -1,6 +1,7 @@
 use crossbeam_channel::Sender;
 use ordered_float::OrderedFloat;
 use priority_queue::PriorityQueue;
+use rand::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
@@ -19,11 +20,25 @@ pub struct DijkstraUpdate {
 }
 
 impl Dijkstra {
-    pub fn connect(&self, a: (usize, usize), b: (usize, usize), tx: Sender<DijkstraUpdate>) {
-        self.connect_once(a, b, tx);
+    pub fn connect(&self, tx: Sender<DijkstraUpdate>) {
+        let mut rng = rand::rng();
+        loop {
+            self.connect_once(
+                (
+                    rng.random_range(0..self.height),
+                    rng.random_range(0..self.width),
+                ),
+                (
+                    rng.random_range(0..self.height),
+                    rng.random_range(0..self.width),
+                ),
+                &tx,
+            );
+        }
     }
 
-    fn connect_once(&self, a: (usize, usize), b: (usize, usize), tx: Sender<DijkstraUpdate>) {
+    fn connect_once(&self, a: (usize, usize), b: (usize, usize), tx: &Sender<DijkstraUpdate>) {
+        println!("Connecting {:?} to {:?}", a, b);
         let cost_of_step_on_road = OrderedFloat(1.0);
         let cost_of_build_road = OrderedFloat(10.0);
         let cost_of_build_bridge = OrderedFloat(100.0);
@@ -97,6 +112,7 @@ impl Dijkstra {
             }
             curr = (*r, *c);
         }
+        println!("Path length: {}", path.len());
         let _ = tx.send(DijkstraUpdate {
             path,
             houses: vec![],

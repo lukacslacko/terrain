@@ -84,7 +84,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: R
     let (tx, rx) = bounded::<DijkstraUpdate>(1);
     let other_dijkstra = map_state.dijkstra.clone();
     std::thread::spawn(move || {
-        other_dijkstra.connect((100, 100), (500, 500), tx);
+        other_dijkstra.connect(tx);
     });
     commands.insert_resource(DijkstraReceiver(rx));
 
