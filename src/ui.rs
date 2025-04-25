@@ -48,7 +48,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut map_stat
     map_state.render_image(&mut image);
     let end = (map_state.height * 4 / 5, map_state.width * 4 / 5);
     let start = (map_state.height / 5, map_state.width / 5);
-    // map_state.connect(start, end, &mut image);
+    map_state.connect(start, end, &mut image);
 
     let image_handle = images.add(image).clone();
 
