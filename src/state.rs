@@ -1,6 +1,7 @@
 use crate::terrain::height_map;
-use bevy::prelude::*;
-use std::collections::{HashMap, HashSet};
+use bevy::{image, prelude::*};
+use ordered_float::OrderedFloat;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 #[derive(Resource)]
 pub struct ImageHandle(pub Handle<Image>);
@@ -19,6 +20,8 @@ pub struct MapState {
     lake_id: Vec<Vec<usize>>,
     min_height: f32,
     max_height: f32,
+    road_level: Vec<Vec<i32>>,
+    house_level: Vec<Vec<i32>>,
 }
 
 impl MapState {
@@ -92,7 +95,6 @@ impl MapState {
                     let mut c = col;
                     while !is_edge(r, c) {
                         is_water[r][c] = true;
-                        println!("Row: {}, Col: {}", r, c);
                         let neighbors = [
                             (r.saturating_sub(1), c),
                             ((r + 1).min(height - 1), c),
@@ -177,6 +179,58 @@ impl MapState {
             max_height,
             is_water,
             lake_id,
+            road_level: vec![vec![0; width]; height],
+            house_level: vec![vec![0; width]; height],
+        }
+    }
+
+    pub fn connect(&mut self, a: (usize, usize), b: (usize, usize), image: &mut Image) {
+        let cost_of_step_on_road = OrderedFloat(1.0);
+        let cost_of_build_road = OrderedFloat(10.0);
+        let cost_of_build_bridge = OrderedFloat(100.0);
+        let cost_of_climb_multiplier = OrderedFloat(1.0);
+
+        let mut heap = BinaryHeap::new();
+        let mut done = HashSet::new();
+        let mut come_from = HashMap::new();
+        heap.push((OrderedFloat(0.0), a, a));
+        while !heap.is_empty() && !done.contains(&b) {
+            let (cost, (row, col), came_from) = heap.pop().unwrap();
+            done.insert((row, col));
+            come_from.insert((row, col), came_from);
+            let neighbors = [
+                (row.saturating_sub(1), col),
+                ((row + 1).min(self.height - 1), col),
+                (row, col.saturating_sub(1)),
+                (row, (col + 1).min(self.width - 1)),
+            ];
+            for (nr, nc) in neighbors.iter() {
+                if done.contains(&(*nr, *nc)) || self.house_level[*nr][*nc] != 0 {
+                    continue;
+                }
+                let new_cost = cost
+                    + cost_of_climb_multiplier
+                        * (self.height_map[*nr][*nc] - self.height_map[row][col]).abs()
+                    + (if self.road_level[*nr][*nc] == 0 {
+                        cost_of_build_road
+                    } else if self.is_water[*nr][*nc] {
+                        cost_of_build_bridge
+                    } else {
+                        cost_of_step_on_road
+                    });
+                heap.push((new_cost, (*nr, *nc), (row, col)));
+            }
+        }
+        let (mut r, mut c) = b;
+        while (r, c) != a {
+            self.road_level[r][c] += 1;
+            let pixel = image
+                .pixel_bytes_mut(UVec3::new(c as u32, r as u32, 0))
+                .unwrap();
+            pixel[0] = 255;
+            pixel[1] = 0;
+            pixel[2] = 0;
+            (r, c) = come_from[&(r, c)]
         }
     }
 
@@ -189,7 +243,7 @@ impl MapState {
                 let level = |x: f32| (x * 30.0).floor();
                 let value =
                     (self.height_map[j][i] - self.min_height) / (self.max_height - self.min_height);
-                let should_draw_level_lines = false;
+                let should_draw_level_lines = true;
                 if should_draw_level_lines
                     && i + 1 < self.width
                     && j + 1 < self.height
