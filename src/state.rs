@@ -1,7 +1,8 @@
 use crate::terrain::height_map;
-use bevy::{image, prelude::*};
+use bevy::prelude::*;
 use ordered_float::OrderedFloat;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use priority_queue::PriorityQueue;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Resource)]
 pub struct ImageHandle(pub Handle<Image>);
@@ -95,12 +96,19 @@ impl MapState {
                     let mut c = col;
                     while !is_edge(r, c) {
                         is_water[r][c] = true;
-                        let neighbors = [
-                            (r.saturating_sub(1), c),
-                            ((r + 1).min(height - 1), c),
-                            (r, c.saturating_sub(1)),
-                            (r, (c + 1).min(width - 1)),
-                        ];
+                        // let neighbors = [
+                        //     (r.saturating_sub(1), c),
+                        //     ((r + 1).min(height - 1), c),
+                        //     (r, c.saturating_sub(1)),
+                        //     (r, (c + 1).min(width - 1)),
+                        // ];
+                        let mut neighbors = Vec::new();
+                        for dr in -1..=1 {
+                            for dc in -1..=1 {
+                                neighbors
+                                    .push(((r as isize + dr) as usize, (c as isize + dc) as usize));
+                            }
+                        }
                         let non_same_lake_lower_neighbors = neighbors
                             .iter()
                             .filter(|&&(nr, nc)| {
@@ -115,7 +123,16 @@ impl MapState {
                         }
                         let lowest_neighbor = non_same_lake_lower_neighbors
                             .iter()
-                            .map(|&&(r, c)| (height_map[r][c], r, c))
+                            .map(|&&(nr, nc)| {
+                                (
+                                    (height_map[nr][nc] - height_map[r][c])
+                                        / ((nr as f32 - r as f32) * (nr as f32 - r as f32)
+                                            + (nc as f32 - c as f32) * (nc as f32 - c as f32))
+                                            .sqrt(),
+                                    nr,
+                                    nc,
+                                )
+                            })
                             .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
                             .unwrap();
                         r = lowest_neighbor.1;
@@ -190,47 +207,23 @@ impl MapState {
         let cost_of_build_bridge = OrderedFloat(100.0);
         let cost_of_climb_multiplier = OrderedFloat(1.0);
 
-        let mut heap = BinaryHeap::new();
-        let mut done = HashSet::new();
-        let mut come_from = HashMap::new();
-        heap.push((OrderedFloat(0.0), a, a));
-        while !heap.is_empty() && !done.contains(&b) {
-            let (cost, (row, col), came_from) = heap.pop().unwrap();
-            done.insert((row, col));
-            come_from.insert((row, col), came_from);
-            let neighbors = [
-                (row.saturating_sub(1), col),
-                ((row + 1).min(self.height - 1), col),
-                (row, col.saturating_sub(1)),
-                (row, (col + 1).min(self.width - 1)),
-            ];
-            for (nr, nc) in neighbors.iter() {
-                if done.contains(&(*nr, *nc)) || self.house_level[*nr][*nc] != 0 {
-                    continue;
-                }
-                let new_cost = cost
-                    + cost_of_climb_multiplier
-                        * (self.height_map[*nr][*nc] - self.height_map[row][col]).abs()
-                    + (if self.road_level[*nr][*nc] == 0 {
-                        cost_of_build_road
-                    } else if self.is_water[*nr][*nc] {
-                        cost_of_build_bridge
-                    } else {
-                        cost_of_step_on_road
-                    });
-                heap.push((new_cost, (*nr, *nc), (row, col)));
+        type Point = (usize, usize);
+        let mut dist = HashMap::new();
+        // let mut come_from = HashMap::new();
+        let mut visited = HashSet::new();
+        let mut queue = PriorityQueue::new();
+
+        dist.insert(a, OrderedFloat(0.0));
+        queue.push(a, OrderedFloat(0.0));
+
+        while let Some((current, current_dist)) = queue.pop() {
+            if visited.contains(&current) {
+                continue;
             }
-        }
-        let (mut r, mut c) = b;
-        while (r, c) != a {
-            self.road_level[r][c] += 1;
-            let pixel = image
-                .pixel_bytes_mut(UVec3::new(c as u32, r as u32, 0))
-                .unwrap();
-            pixel[0] = 255;
-            pixel[1] = 0;
-            pixel[2] = 0;
-            (r, c) = come_from[&(r, c)]
+            visited.insert(current);
+            if current == b {
+                break;
+            }
         }
     }
 
@@ -243,7 +236,7 @@ impl MapState {
                 let level = |x: f32| (x * 30.0).floor();
                 let value =
                     (self.height_map[j][i] - self.min_height) / (self.max_height - self.min_height);
-                let should_draw_level_lines = true;
+                let should_draw_level_lines = false;
                 if should_draw_level_lines
                     && i + 1 < self.width
                     && j + 1 < self.height

@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 bevy = "0.15.3"
 ordered-float = "5.0.0"
+priority-queue = "2.3.1"
