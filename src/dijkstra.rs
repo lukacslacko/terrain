@@ -20,7 +20,7 @@ pub struct DijkstraUpdate {
 }
 
 impl Dijkstra {
-    pub fn connect(&self, tx: Sender<DijkstraUpdate>) {
+    pub fn connect(&mut self, tx: Sender<DijkstraUpdate>) {
         let mut rng = rand::rng();
         loop {
             self.connect_once(
@@ -37,7 +37,7 @@ impl Dijkstra {
         }
     }
 
-    fn connect_once(&self, a: (usize, usize), b: (usize, usize), tx: &Sender<DijkstraUpdate>) {
+    fn connect_once(&mut self, a: (usize, usize), b: (usize, usize), tx: &Sender<DijkstraUpdate>) {
         println!("Connecting {:?} to {:?}", a, b);
         let cost_of_step_on_road = OrderedFloat(1.0);
         let cost_of_build_road = OrderedFloat(10.0);
@@ -111,6 +111,7 @@ impl Dijkstra {
                 break;
             }
             curr = (*r, *c);
+            self.road_level[*r][*c] += 1;
         }
         println!("Path length: {}", path.len());
         let _ = tx.send(DijkstraUpdate {
