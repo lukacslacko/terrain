@@ -283,7 +283,7 @@ impl MapState {
             self.road_level[*r][*c] += 1;
             curr = (*r, *c);
         }
-}
+    }
 
     pub fn render_image(&self, image: &mut Image) {
         for i in 0..self.width {

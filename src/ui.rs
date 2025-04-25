@@ -33,7 +33,11 @@ pub fn init(width: usize, height: usize) {
 #[derive(Component)]
 struct MainCamera;
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut map_state: ResMut<MapState>) {
+fn setup(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut map_state: ResMut<MapState>,
+) {
     let mut image = Image::new_fill(
         Extent3d {
             width: map_state.width as u32,
@@ -46,9 +50,21 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut map_stat
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
     map_state.render_image(&mut image);
-    let end = (map_state.height * 4 / 5, map_state.width * 4 / 5);
-    let start = (map_state.height / 5, map_state.width / 5);
-    map_state.connect(start, end, &mut image);
+    {
+        let end = (map_state.height * 4 / 5, map_state.width * 4 / 5);
+        let start = (map_state.height / 5, map_state.width / 5);
+        map_state.connect(start, end, &mut image);
+    }
+    {
+        let end = (map_state.height / 5, map_state.width * 4 / 5);
+        let start = (map_state.height * 4 / 5, map_state.width / 5);
+        map_state.connect(start, end, &mut image);
+    }
+    {
+        let end = (map_state.height * 2 / 5, map_state.width / 5);
+        let start = (map_state.height / 5, map_state.width * 4 / 5);
+        map_state.connect(start, end, &mut image);
+    }
 
     let image_handle = images.add(image).clone();
 
