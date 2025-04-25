@@ -202,18 +202,24 @@ impl MapState {
             let pixel = image
                 .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
                 .unwrap();
-            pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
-            pixel[1] = 0;
-            pixel[2] = 0;
+            // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
+            // pixel[1] = 0;
+            // pixel[2] = 0;
+            pixel[0] = pixel[0].saturating_add(1);
+            pixel[1] = pixel[1].saturating_sub(1);
+            pixel[2] = pixel[2].saturating_sub(1);
         }
         for (row, col) in update.houses.iter() {
             self.dijkstra.house_level[*row][*col] += 1;
             let pixel = image
                 .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
                 .unwrap();
-            pixel[0] = 255;
-            pixel[1] = 255;
-            pixel[2] = 255;
+            // pixel[0] = 255;
+            // pixel[1] = 255;
+            // pixel[2] = 255;
+            pixel[0] = pixel[0].saturating_add(20);
+            pixel[1] = pixel[1].saturating_add(20);
+            pixel[2] = pixel[2].saturating_add(20);
         }
     }
 
