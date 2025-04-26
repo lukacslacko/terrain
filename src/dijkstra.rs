@@ -23,16 +23,25 @@ impl Dijkstra {
     pub fn connect(&mut self, tx: Sender<DijkstraUpdate>) {
         let mut rng = rand::rng();
         let mut houses = HashSet::new();
-        const PATHS_AT_ONCE: usize = 5;
-        for _ in 0..2 * PATHS_AT_ONCE {
-            houses.insert(loop {
-                let r = rng.random_range(0..self.height);
-                let c = rng.random_range(0..self.width);
+        let mut lakeside_points = Vec::new();
+        for r in 1..(self.height-1) {
+            for c in 1..(self.width-1) {
                 if self.is_water[r][c] {
                     continue;
                 }
-                break (r, c);
-            });
+                if self.is_water[r - 1][c]
+                    || self.is_water[r + 1][c]
+                    || self.is_water[r][c - 1]
+                    || self.is_water[r][c + 1]
+                {
+                    lakeside_points.push((r, c));
+                }
+            }
+        }
+        lakeside_points.shuffle(&mut rng);
+        const PATHS_AT_ONCE: usize = 5;
+        for _ in 0..2 * PATHS_AT_ONCE {
+            houses.insert(lakeside_points.pop().unwrap());
         }
         loop {
             let path = self.connect_once(
@@ -40,6 +49,25 @@ impl Dijkstra {
                 &houses.iter().choose_multiple(&mut rng, PATHS_AT_ONCE),
                 &tx,
             );
+            // let path = self.connect_once(
+            //     loop {
+            //         let r = rng.random_range(0..self.height);
+            //         let c = rng.random_range(0..self.width);
+            //         if self.is_water[r][c] {
+            //             continue;
+            //         }
+            //         break (r, c);
+            //     },
+            //     &vec![&loop {
+            //         let r = rng.random_range(0..self.height);
+            //         let c = rng.random_range(0..self.width);
+            //         if self.is_water[r][c] {
+            //             continue;
+            //         }
+            //         break (r, c);
+            //     }],
+            //     &tx,
+            // );
             if path.is_empty() {
                 continue;
             }
@@ -81,14 +109,7 @@ impl Dijkstra {
                 let random_house = houses.iter().choose(&mut rng).unwrap().clone();
                 self.house_level[random_house.0][random_house.1] = 0;
                 houses.remove(&random_house);
-                let moved_house = loop {
-                    let r = rng.random_range(0..self.height);
-                    let c = rng.random_range(0..self.width);
-                    if self.is_water[r][c] {
-                        continue;
-                    }
-                    break (r, c);
-                };
+                let moved_house = lakeside_points.pop().unwrap();
                 self.house_level[moved_house.0][moved_house.1] = 1;
                 houses.insert(moved_house);
             }

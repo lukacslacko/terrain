@@ -1,8 +1,8 @@
 pub fn height_map(w: usize, h: usize) -> Vec<Vec<f32>> {
     let mut height_map = vec![vec![0.0; w]; h];
     let perlin = Perlin {
-        seed: 132,
-        frequency: 4.0,
+        seed: 133,
+        frequency: 7.0,
         lacunarity: 2.13,
         persistence: 0.3,
         octaves: 5,

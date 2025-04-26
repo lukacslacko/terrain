@@ -207,9 +207,9 @@ impl MapState {
                 // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
                 // pixel[1] = 0;
                 // pixel[2] = 0;
-                pixel[0] = pixel[0].saturating_add(10);
-                pixel[1] = pixel[1].saturating_sub(10);
-                pixel[2] = pixel[2].saturating_sub(10);
+                pixel[0] = pixel[0].saturating_add(30);
+                pixel[1] = pixel[1].saturating_add(30);
+                pixel[2] = pixel[2].saturating_add(30);
                 if (row, col) == *end {
                     break;
                 }
@@ -226,8 +226,8 @@ impl MapState {
             // pixel[1] = 255;
             // pixel[2] = 255;
             pixel[0] = pixel[0].saturating_add(20);
-            pixel[1] = pixel[1].saturating_add(20);
-            pixel[2] = pixel[2].saturating_add(20);
+            pixel[1] = pixel[1].saturating_sub(20);
+            pixel[2] = pixel[2].saturating_sub(20);
         }
     }
 
@@ -264,7 +264,7 @@ impl MapState {
                         || level(self.dijkstra.height_map[j][i])
                             != level(self.dijkstra.height_map[j][i + 1]))
                 {
-                    let (r, g, b) = rgb(value, 0.95);
+                    let (r, g, b) = rgb(value, 0.9);
                     pixel[0] = r;
                     pixel[1] = g;
                     pixel[2] = b;
