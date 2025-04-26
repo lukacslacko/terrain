@@ -3,5 +3,5 @@ mod state;
 mod terrain;
 mod ui;
 fn main() {
-    ui::init(256, 256);
+    ui::init(512, 512);
 }

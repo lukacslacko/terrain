@@ -5,7 +5,7 @@ pub fn height_map(w: usize, h: usize) -> Vec<Vec<f32>> {
         frequency: 4.0,
         lacunarity: 2.13,
         persistence: 0.3,
-        octaves: 4,
+        octaves: 5,
     };
     for y in 0..h {
         for x in 0..w {

@@ -15,7 +15,7 @@ pub struct Dijkstra {
 }
 
 pub struct DijkstraUpdate {
-    pub path: Vec<(usize, usize)>,
+    pub path: Vec<((usize, usize), (usize, usize))>,
     pub houses: Vec<(usize, usize)>,
 }
 
@@ -50,8 +50,8 @@ impl Dijkstra {
                         if dr == 0 && dc == 0 {
                             continue;
                         }
-                        let inr = midpoint.0 as isize + dr;
-                        let inc = midpoint.1 as isize + dc;
+                        let inr = midpoint.1.0 as isize + dr;
+                        let inc = midpoint.1.1 as isize + dc;
                         if inr < 0
                             || inc < 0
                             || inr >= self.height as isize
@@ -97,7 +97,7 @@ impl Dijkstra {
         a: (usize, usize),
         b: (usize, usize),
         tx: &Sender<DijkstraUpdate>,
-    ) -> Vec<(usize, usize)> {
+    ) -> Vec<((usize, usize), (usize, usize))> {
         if self.is_water[a.0][a.1] || self.is_water[b.0][b.1] {
             return Vec::new();
         }
@@ -106,8 +106,8 @@ impl Dijkstra {
         }
         println!("Connecting {:?} to {:?}", a, b);
         let cost_of_step_on_road = OrderedFloat(1.0);
-        let cost_of_build_road = OrderedFloat(30.0);
-        let cost_of_build_bridge = OrderedFloat(100.0);
+        let cost_of_build_road = OrderedFloat(10.0);
+        let cost_of_build_bridge = OrderedFloat(30.0);
         let cost_of_climb_multiplier = OrderedFloat(3000.0);
 
         let mut dist = HashMap::new();
@@ -127,9 +127,12 @@ impl Dijkstra {
                 break;
             }
             let mut neighbors = Vec::new();
-            for dr in -1..=1 {
-                for dc in -1..=1 {
+            for dr in -3..=3 {
+                for dc in -3..=3 {
                     if dr == 0 && dc == 0 {
+                        continue;
+                    }
+                    if dr * dr + dc * dc > 9 {
                         continue;
                     }
                     let factor = ((dr as f32) * (dr as f32) + (dc as f32) * (dc as f32)).sqrt();
@@ -149,7 +152,8 @@ impl Dijkstra {
                     }
                     let mut steepness_cost = OrderedFloat(
                         (self.height_map[nr][nc] - self.height_map[current.0][current.1]).abs(),
-                    ) * cost_of_climb_multiplier * factor;
+                    ) * cost_of_climb_multiplier
+                        * factor;
                     steepness_cost = steepness_cost * steepness_cost;
                     if self.road_level[nr][nc] != 0 {
                         neighbors.push((cost_of_step_on_road * factor + steepness_cost, (nr, nc)));
@@ -177,7 +181,7 @@ impl Dijkstra {
             if *r == a.0 && *c == a.1 {
                 break;
             }
-            path.push((*r, *c));
+            path.push((curr, (*r, *c)));
             curr = (*r, *c);
             self.road_level[*r][*c] = 1;
         }

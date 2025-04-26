@@ -197,17 +197,25 @@ impl MapState {
     }
 
     pub fn process_dijsktra_update(&mut self, update: &DijkstraUpdate, image: &mut Image) {
-        for (row, col) in update.path.iter() {
-            self.dijkstra.road_level[*row][*col] += 1;
-            let pixel = image
-                .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
-                .unwrap();
-            // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
-            // pixel[1] = 0;
-            // pixel[2] = 0;
-            pixel[0] = pixel[0].saturating_add(10);
-            pixel[1] = pixel[1].saturating_sub(10);
-            pixel[2] = pixel[2].saturating_sub(10);
+        for (start, end) in update.path.iter() {
+            let (mut row, mut col) = *start;
+            loop {
+                self.dijkstra.road_level[row][col] += 1;
+                let pixel = image
+                    .pixel_bytes_mut(UVec3::new(col as u32, row as u32, 0))
+                    .unwrap();
+                // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
+                // pixel[1] = 0;
+                // pixel[2] = 0;
+                pixel[0] = pixel[0].saturating_add(10);
+                pixel[1] = pixel[1].saturating_sub(10);
+                pixel[2] = pixel[2].saturating_sub(10);
+                if (row, col) == *end {
+                    break;
+                }
+                row = (row as isize + (end.0 as isize - row as isize).signum()) as usize;
+                col = (col as isize + (end.1 as isize - col as isize).signum()) as usize;
+            }
         }
         for (row, col) in update.houses.iter() {
             self.dijkstra.house_level[*row][*col] += 1;
