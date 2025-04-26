@@ -232,8 +232,23 @@ impl MapState {
                 let level = |x: f32| (x * 30.0).floor();
                 let value = (self.dijkstra.height_map[j][i] - self.min_height)
                     / (self.max_height - self.min_height);
+                let value_north = if j > 0 {
+                    (self.dijkstra.height_map[j - 1][i] - self.min_height)
+                        / (self.max_height - self.min_height)
+                } else {
+                    value
+                };
+                let shadow = 20.0 * (value - value_north) + 1.0;
                 let should_draw_level_lines = true;
-                if should_draw_level_lines
+                let lerp = |a: i32, b: i32, t: f32, s: f32| {
+                    (shadow * s * (a as f32 + t * (b as f32 - a as f32))).clamp(0.0, 255.0) as u8
+                };
+                let rgb = |v, s| (lerp(0, 100, v, s), lerp(150, 50, v, s), lerp(0, 50, v, s));
+                if self.dijkstra.is_water[j][i] {
+                    pixel[0] = 0;
+                    pixel[1] = 0;
+                    pixel[2] = 255;
+                } else if should_draw_level_lines
                     && i + 1 < self.dijkstra.width
                     && j + 1 < self.dijkstra.height
                     && (level(self.dijkstra.height_map[j][i])
@@ -241,13 +256,10 @@ impl MapState {
                         || level(self.dijkstra.height_map[j][i])
                             != level(self.dijkstra.height_map[j][i + 1]))
                 {
-                    pixel[0] = (value * 90.0) as u8;
-                    pixel[1] = (value * 180.0) as u8;
-                    pixel[2] = (value * 90.0) as u8;
-                } else if self.dijkstra.is_water[j][i] {
-                    pixel[0] = 0;
-                    pixel[1] = 0;
-                    pixel[2] = 255;
+                    let (r, g, b) = rgb(value, 0.95);
+                    pixel[0] = r;
+                    pixel[1] = g;
+                    pixel[2] = b;
                 } else {
                     // use std::f32::consts::PI;
                     // let value = 2.0
@@ -257,9 +269,10 @@ impl MapState {
                     // pixel[1] = (((value + 2.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
                     // pixel[2] = (((value + 4.0 * PI / 3.0).sin() + 1.0) * 127.5) as u8;
 
-                    pixel[0] = (value * 100.0) as u8;
-                    pixel[1] = (value * 200.0) as u8;
-                    pixel[2] = (value * 100.0) as u8;
+                    let (r, g, b) = rgb(value, 1.0);
+                    pixel[0] = r;
+                    pixel[1] = g;
+                    pixel[2] = b;
                 }
             }
         }
