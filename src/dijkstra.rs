@@ -1,5 +1,5 @@
 use crossbeam_channel::Sender;
-use ordered_float::OrderedFloat;
+use ordered_float::{OrderedFloat, Pow};
 use priority_queue::PriorityQueue;
 use rand::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -23,7 +23,8 @@ impl Dijkstra {
     pub fn connect(&mut self, tx: Sender<DijkstraUpdate>) {
         let mut rng = rand::rng();
         let mut houses = HashSet::new();
-        for _ in 0..5 {
+        const PATHS_AT_ONCE: usize = 5;
+        for _ in 0..2 * PATHS_AT_ONCE {
             houses.insert(loop {
                 let r = rng.random_range(0..self.height);
                 let c = rng.random_range(0..self.width);
@@ -36,13 +37,13 @@ impl Dijkstra {
         loop {
             let path = self.connect_once(
                 *houses.iter().choose(&mut rng).unwrap(),
-                *houses.iter().choose(&mut rng).unwrap(),
+                &houses.iter().choose_multiple(&mut rng, PATHS_AT_ONCE),
                 &tx,
             );
             if path.is_empty() {
                 continue;
             }
-            for _ in 0..1 {
+            for _ in 0..PATHS_AT_ONCE {
                 let midpoint = path.choose(&mut rng).unwrap();
                 let mut maybe_new_houses = Vec::new();
                 for dr in -1..=1 {
@@ -76,34 +77,39 @@ impl Dijkstra {
                 houses.insert(new_house);
                 self.house_level[new_house.0][new_house.1] = 1;
             }
-            let random_house = houses.iter().choose(&mut rng).unwrap().clone();
-            self.house_level[random_house.0][random_house.1] = 0;
-            houses.remove(&random_house);
-            let moved_house = loop {
-                let r = rng.random_range(0..self.height);
-                let c = rng.random_range(0..self.width);
-                if self.is_water[r][c] {
-                    continue;
-                }
-                break (r, c);
-            };
-            self.house_level[moved_house.0][moved_house.1] = 1;
-            houses.insert(moved_house);
+            for _ in 0..PATHS_AT_ONCE {
+                let random_house = houses.iter().choose(&mut rng).unwrap().clone();
+                self.house_level[random_house.0][random_house.1] = 0;
+                houses.remove(&random_house);
+                let moved_house = loop {
+                    let r = rng.random_range(0..self.height);
+                    let c = rng.random_range(0..self.width);
+                    if self.is_water[r][c] {
+                        continue;
+                    }
+                    break (r, c);
+                };
+                self.house_level[moved_house.0][moved_house.1] = 1;
+                houses.insert(moved_house);
+            }
         }
     }
 
     fn connect_once(
         &mut self,
         a: (usize, usize),
-        b: (usize, usize),
+        b: &Vec<&(usize, usize)>,
         tx: &Sender<DijkstraUpdate>,
     ) -> Vec<((usize, usize), (usize, usize))> {
-        if self.is_water[a.0][a.1] || self.is_water[b.0][b.1] {
+        if self.is_water[a.0][a.1] {
             return Vec::new();
         }
-        if a == b {
-            return Vec::new();
-        }
+        let good_targets = b
+            .iter()
+            .filter(|&&b| !self.is_water[b.0][b.1])
+            .map(|&&b| b)
+            .collect::<HashSet<_>>();
+        let mut targets_connected = HashSet::new();
         println!("Connecting {:?} to {:?}", a, b);
         let cost_of_step_on_road = OrderedFloat(1.0);
         let cost_of_build_road = OrderedFloat(10.0);
@@ -123,19 +129,22 @@ impl Dijkstra {
                 continue;
             }
             visited.insert(current);
-            if current == b {
-                break;
+            if good_targets.contains(&current) {
+                targets_connected.insert(current);
+                if targets_connected.len() == good_targets.len() {
+                    break;
+                }
             }
             let mut neighbors = Vec::new();
-            for dr in -3..=3 {
-                for dc in -3..=3 {
+            for dr in -4..=4 {
+                for dc in -4..=4 {
                     if dr == 0 && dc == 0 {
                         continue;
                     }
-                    if dr * dr + dc * dc > 9 {
+                    if dr * dr + dc * dc > 16 {
                         continue;
                     }
-                    let factor = ((dr as f32) * (dr as f32) + (dc as f32) * (dc as f32)).sqrt();
+                    let factor = ((dr as f32) * (dr as f32) + (dc as f32) * (dc as f32)).pow(0.4);
                     let inr = current.0 as isize + dr;
                     let inc = current.1 as isize + dc;
                     if inr < 0
@@ -147,7 +156,7 @@ impl Dijkstra {
                     }
                     let nr = inr as usize;
                     let nc = inc as usize;
-                    if self.house_level[nr][nc] != 0 && b != (nr, nc) {
+                    if self.house_level[nr][nc] != 0 && !good_targets.contains(&(nr, nc)) {
                         continue;
                     }
                     let mut steepness_cost = OrderedFloat(
@@ -175,24 +184,28 @@ impl Dijkstra {
                 }
             }
         }
-        let mut curr = b;
         let mut path = Vec::new();
-        while let Some((r, c)) = come_from.get(&curr) {
-            if *r == a.0 && *c == a.1 {
-                break;
+        for &current in targets_connected.iter() {
+            let mut curr = current;
+            while let Some((r, c)) = come_from.get(&curr) {
+                if *r == a.0 && *c == a.1 {
+                    break;
+                }
+                path.push((curr, (*r, *c)));
+                curr = (*r, *c);
+                self.road_level[*r][*c] = 1;
             }
-            path.push((curr, (*r, *c)));
-            curr = (*r, *c);
-            self.road_level[*r][*c] = 1;
+            self.house_level[current.0][current.1] = 1;
+            self.road_level[current.0][current.1] = 0;
         }
         self.house_level[a.0][a.1] = 1;
-        self.house_level[b.0][b.1] = 1;
         self.road_level[a.0][a.1] = 0;
-        self.road_level[b.0][b.1] = 0;
         println!("Path length: {}", path.len());
+        let mut houses = vec![a];
+        houses.extend(good_targets.iter().cloned());
         let _ = tx.send(DijkstraUpdate {
             path: path.clone(),
-            houses: vec![a, b],
+            houses,
         });
         return path;
     }

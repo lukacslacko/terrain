@@ -246,7 +246,7 @@ impl MapState {
                 } else {
                     value
                 };
-                let shadow = 20.0 * (value - value_north) + 1.0;
+                let shadow = 30.0 * (value - value_north) + 1.0;
                 let should_draw_level_lines = true;
                 let lerp = |a: i32, b: i32, t: f32, s: f32| {
                     (shadow * s * (a as f32 + t * (b as f32 - a as f32))).clamp(0.0, 255.0) as u8
