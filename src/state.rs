@@ -205,9 +205,9 @@ impl MapState {
             // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
             // pixel[1] = 0;
             // pixel[2] = 0;
-            pixel[0] = pixel[0].saturating_add(1);
-            pixel[1] = pixel[1].saturating_sub(1);
-            pixel[2] = pixel[2].saturating_sub(1);
+            pixel[0] = pixel[0].saturating_add(10);
+            pixel[1] = pixel[1].saturating_sub(10);
+            pixel[2] = pixel[2].saturating_sub(10);
         }
         for (row, col) in update.houses.iter() {
             self.dijkstra.house_level[*row][*col] += 1;

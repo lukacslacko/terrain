@@ -108,7 +108,7 @@ impl Dijkstra {
         let cost_of_step_on_road = OrderedFloat(1.0);
         let cost_of_build_road = OrderedFloat(100.0);
         let cost_of_build_bridge = OrderedFloat(1000.0);
-        let cost_of_climb_multiplier = OrderedFloat(10000.0);
+        let cost_of_climb_multiplier = OrderedFloat(3000.0);
 
         let mut dist = HashMap::new();
         let mut come_from = HashMap::new();
@@ -132,6 +132,7 @@ impl Dijkstra {
                     if dr == 0 && dc == 0 {
                         continue;
                     }
+                    let factor = ((dr as f32) * (dr as f32) + (dc as f32) * (dc as f32)).sqrt();
                     let inr = current.0 as isize + dr;
                     let inc = current.1 as isize + dc;
                     if inr < 0
@@ -146,18 +147,19 @@ impl Dijkstra {
                     if self.house_level[nr][nc] != 0 && b != (nr, nc) {
                         continue;
                     }
-                    let steepness_cost = OrderedFloat(
+                    let mut steepness_cost = OrderedFloat(
                         (self.height_map[nr][nc] - self.height_map[current.0][current.1]).abs(),
-                    ) * cost_of_climb_multiplier;
+                    ) * cost_of_climb_multiplier * factor;
+                    steepness_cost = steepness_cost * steepness_cost;
                     if self.road_level[nr][nc] != 0 {
-                        neighbors.push((cost_of_step_on_road + steepness_cost, (nr, nc)));
+                        neighbors.push((cost_of_step_on_road * factor + steepness_cost, (nr, nc)));
                         continue;
                     }
                     if self.is_water[nr][nc] {
-                        neighbors.push((cost_of_build_bridge + steepness_cost, (nr, nc)));
+                        neighbors.push((cost_of_build_bridge * factor + steepness_cost, (nr, nc)));
                         continue;
                     }
-                    neighbors.push((cost_of_build_road + steepness_cost, (nr, nc)));
+                    neighbors.push((cost_of_build_road * factor + steepness_cost, (nr, nc)));
                 }
             }
             for (cost, neighbor) in neighbors {
