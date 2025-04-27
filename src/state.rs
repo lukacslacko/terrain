@@ -41,9 +41,6 @@ impl MapState {
         let mut points_handled = 0;
         for (h, row, col) in points_with_height {
             points_handled += 1;
-            if points_handled == 10000000 {
-                break;
-            }
             let neighbor_lake_ids = [
                 (row.saturating_sub(1), col),
                 ((row + 1).min(height - 1), col),
@@ -200,15 +197,27 @@ impl MapState {
 
     pub fn process_dijsktra_update(&mut self, update: &DijkstraUpdate, image: &mut Image) {
         for (start, end) in update.path.iter() {
+            let dist = (((start.0 as isize - end.0 as isize).pow(2)
+                + (start.1 as isize - end.1 as isize).pow(2)) as f32)
+                .sqrt();
+            let height_diff =
+                self.dijkstra.height_map[start.0][start.1] - self.dijkstra.height_map[end.0][end.1];
+            let steepness = 2000.0 * (height_diff / dist).abs();
+            let (r,g,b) = match steepness {
+                0.0..=0.5 => (255, 255, 255),
+                0.5..=1.0 => (255, 128, 0),
+                1.0..=2.0 => (255, 0, 0),
+                _ => (255, 0, 255),
+            };
             let (mut row, mut col) = *start;
             loop {
                 self.dijkstra.road_level[row][col] += 1;
                 let pixel = image
                     .pixel_bytes_mut(UVec3::new(col as u32, row as u32, 0))
                     .unwrap();
-                pixel[0] = 255;
-                pixel[1] = 255;
-                pixel[2] = 255;
+                pixel[0] = r as u8;
+                pixel[1] = g as u8;
+                pixel[2] = b as u8;
                 if (row, col) == *end {
                     break;
                 }

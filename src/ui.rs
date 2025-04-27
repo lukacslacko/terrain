@@ -153,6 +153,9 @@ fn on_mouse_left_click(
         let y = (-ray.y + state.dijkstra.height as f32 / 2.0)
             .clamp(0.0, state.dijkstra.height as f32 - 1.0) as usize;
         let station = state.near_station(y, x).unwrap_or((y, x));
+        if state.dijkstra.is_water[station.0][station.1] {
+            return;
+        }
         dijkstra_command_holder.0.a = station;
     }
 }
@@ -175,6 +178,9 @@ fn on_mouse_right_click(
         let y = (-ray.y + state.dijkstra.height as f32 / 2.0)
             .clamp(0.0, state.dijkstra.height as f32 - 1.0) as usize;
         let station = state.near_station(y, x).unwrap_or((y, x));
+        if state.dijkstra.is_water[station.0][station.1] {
+            return;
+        }
         dijkstra_command_holder.0.b = station;
     }
     let _ = dijkstra_command_sender

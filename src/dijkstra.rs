@@ -44,7 +44,7 @@ impl Dijkstra {
         }
     }
 
-    pub fn connect_randoms_forever(&mut self, tx: Sender<DijkstraUpdate>) {
+    pub fn _connect_randoms_forever(&mut self, tx: Sender<DijkstraUpdate>) {
         let mut rng = rand::rng();
         let mut houses = HashSet::new();
         let mut lakeside_points = Vec::new();
@@ -167,8 +167,8 @@ impl Dijkstra {
         let mut targets_connected = HashSet::new();
         println!("Connecting {:?} to {:?}", a, b);
         let cost_of_step_on_road = OrderedFloat(1.0);
-        let cost_of_build_road = OrderedFloat(10.0);
-        let cost_of_build_bridge = OrderedFloat(30.0);
+        let cost_of_build_road = OrderedFloat(3.0);
+        let cost_of_build_bridge = OrderedFloat(10.0);
         let cost_of_climb_multiplier = OrderedFloat(3000.0);
 
         let mut dist = HashMap::new();
