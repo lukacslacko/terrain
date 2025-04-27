@@ -11,6 +11,8 @@ use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::{TextureDimension, TextureFormat};
 use bevy::render::view::window;
 use bevy::state::state;
+use bevy::window::SystemCursorIcon;
+use bevy::winit::cursor::CursorIcon;
 use crossbeam_channel::{Receiver, Sender, bounded};
 
 pub fn init(width: usize, height: usize) {
@@ -71,13 +73,18 @@ fn read_dijkstra_stream(
 }
 
 fn process_dijkstra_updates(
+    mut commands: Commands,
     mut event_reader: EventReader<DijkstraEvent>,
     image_handle: Res<ImageHandle>,
     mut images: ResMut<Assets<Image>>,
+    win_entity: Single<Entity, With<Window>>,
     mut map_state: ResMut<MapState>,
 ) {
     let image = images.get_mut(&image_handle.0).unwrap();
     for event in event_reader.read() {
+        commands
+            .entity(*win_entity)
+            .insert(CursorIcon::from(SystemCursorIcon::Default));
         map_state.process_dijsktra_update(&event.0, image);
     }
 }
@@ -145,13 +152,16 @@ fn on_mouse_left_click(
             .clamp(0.0, state.dijkstra.width as f32 - 1.0) as usize;
         let y = (-ray.y + state.dijkstra.height as f32 / 2.0)
             .clamp(0.0, state.dijkstra.height as f32 - 1.0) as usize;
-        dijkstra_command_holder.0.a = (y, x);
+        let station = state.near_station(y, x).unwrap_or((y, x));
+        dijkstra_command_holder.0.a = station;
     }
 }
 
 fn on_mouse_right_click(
+    mut commands: Commands,
     query: Query<(&GlobalTransform, &Camera, &MainCamera)>,
     windows: Query<&Window>,
+    win_entity: Single<Entity, With<Window>>,
     state: Res<MapState>,
     mut dijkstra_command_holder: ResMut<DijkstraCommandHolder>,
     dijkstra_command_sender: Res<DijkstraCommandSender>,
@@ -164,12 +174,16 @@ fn on_mouse_right_click(
             .clamp(0.0, state.dijkstra.width as f32 - 1.0) as usize;
         let y = (-ray.y + state.dijkstra.height as f32 / 2.0)
             .clamp(0.0, state.dijkstra.height as f32 - 1.0) as usize;
-        dijkstra_command_holder.0.b = (y, x);
+        let station = state.near_station(y, x).unwrap_or((y, x));
+        dijkstra_command_holder.0.b = station;
     }
     let _ = dijkstra_command_sender
         .0
         .send(dijkstra_command_holder.0.clone())
         .unwrap();
+    commands
+        .entity(*win_entity)
+        .insert(CursorIcon::from(SystemCursorIcon::Progress));
 }
 
 fn zoom_camera_around_cursor(

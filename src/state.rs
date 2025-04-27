@@ -14,6 +14,7 @@ pub struct GameTime {
 #[derive(Resource)]
 pub struct MapState {
     pub dijkstra: Dijkstra,
+    stations: HashSet<(usize, usize)>,
     min_height: f32,
     max_height: f32,
 }
@@ -193,6 +194,7 @@ impl MapState {
             dijkstra,
             min_height,
             max_height,
+            stations: HashSet::new(),
         }
     }
 
@@ -204,13 +206,9 @@ impl MapState {
                 let pixel = image
                     .pixel_bytes_mut(UVec3::new(col as u32, row as u32, 0))
                     .unwrap();
-                // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
-                // pixel[1] = 0;
-                // pixel[2] = 0;
-
-                pixel[0] = pixel[0].saturating_add(255);
-                pixel[1] = pixel[1].saturating_add(255);
-                pixel[2] = pixel[2].saturating_add(255);
+                pixel[0] = 255;
+                pixel[1] = 255;
+                pixel[2] = 255;
                 if (row, col) == *end {
                     break;
                 }
@@ -218,18 +216,41 @@ impl MapState {
                 col = (col as isize + (end.1 as isize - col as isize).signum()) as usize;
             }
         }
-        for (row, col) in update.houses.iter() {
-            self.dijkstra.house_level[*row][*col] += 1;
-            let pixel = image
-                .pixel_bytes_mut(UVec3::new(*col as u32, *row as u32, 0))
-                .unwrap();
-            // pixel[0] = 255;
-            // pixel[1] = 255;
-            // pixel[2] = 255;
-            pixel[0] = pixel[0].saturating_add(255);
-            pixel[1] = pixel[1].saturating_sub(255);
-            pixel[2] = pixel[2].saturating_sub(255);
+        for &(row, col) in update.houses.iter() {
+            self.stations.insert((row, col));
         }
+        for &(row, col) in self.stations.iter() {
+            for dr in -4..=4 {
+                for dc in -4..=4 {
+                    if dr * dr + dc * dc > 16 {
+                        continue;
+                    }
+                    let r =
+                        (row as isize + dr).clamp(0, self.dijkstra.height as isize - 1) as usize;
+                    let c = (col as isize + dc).clamp(0, self.dijkstra.width as isize - 1) as usize;
+                    let pixel = image
+                        .pixel_bytes_mut(UVec3::new(c as u32, r as u32, 0))
+                        .unwrap();
+                    pixel[0] = 255;
+                    pixel[1] = 0;
+                    pixel[2] = 0;
+                }
+            }
+        }
+    }
+
+    pub fn near_station(&self, row: usize, col: usize) -> Option<(usize, usize)> {
+        let mut closest = None;
+        let mut closest_distance = 100;
+        for (station_row, station_col) in self.stations.iter() {
+            let distance_squared =
+                station_row.abs_diff(row).pow(2) + station_col.abs_diff(col).pow(2);
+            if distance_squared < closest_distance {
+                closest_distance = distance_squared;
+                closest = Some((*station_row, *station_col));
+            }
+        }
+        closest
     }
 
     pub fn render_image(&self, image: &mut Image) {
