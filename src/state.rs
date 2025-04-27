@@ -8,7 +8,7 @@ pub struct ImageHandle(pub Handle<Image>);
 
 #[derive(Resource)]
 pub struct GameTime {
-    pub time: f32,
+    pub _time: f32,
 }
 
 #[derive(Resource)]
@@ -207,9 +207,10 @@ impl MapState {
                 // pixel[0] = (64 + self.dijkstra.road_level[*row][*col]).min(255) as u8;
                 // pixel[1] = 0;
                 // pixel[2] = 0;
-                pixel[0] = pixel[0].saturating_add(30);
-                pixel[1] = pixel[1].saturating_add(30);
-                pixel[2] = pixel[2].saturating_add(30);
+
+                pixel[0] = pixel[0].saturating_add(255);
+                pixel[1] = pixel[1].saturating_add(255);
+                pixel[2] = pixel[2].saturating_add(255);
                 if (row, col) == *end {
                     break;
                 }
@@ -225,9 +226,9 @@ impl MapState {
             // pixel[0] = 255;
             // pixel[1] = 255;
             // pixel[2] = 255;
-            pixel[0] = pixel[0].saturating_add(20);
-            pixel[1] = pixel[1].saturating_sub(20);
-            pixel[2] = pixel[2].saturating_sub(20);
+            pixel[0] = pixel[0].saturating_add(255);
+            pixel[1] = pixel[1].saturating_sub(255);
+            pixel[2] = pixel[2].saturating_sub(255);
         }
     }
 
@@ -264,7 +265,7 @@ impl MapState {
                         || level(self.dijkstra.height_map[j][i])
                             != level(self.dijkstra.height_map[j][i + 1]))
                 {
-                    let (r, g, b) = rgb(value, 0.9);
+                    let (r, g, b) = rgb(value, 0.85);
                     pixel[0] = r;
                     pixel[1] = g;
                     pixel[2] = b;

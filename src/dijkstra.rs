@@ -1,4 +1,4 @@
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 use ordered_float::{OrderedFloat, Pow};
 use priority_queue::PriorityQueue;
 use rand::prelude::*;
@@ -14,32 +14,66 @@ pub struct Dijkstra {
     pub house_level: Vec<Vec<i32>>,
 }
 
+#[derive(Clone)]
+pub struct DijkstraCommand {
+    pub a: (usize, usize),
+    pub b: (usize, usize),
+}
+
 pub struct DijkstraUpdate {
     pub path: Vec<((usize, usize), (usize, usize))>,
     pub houses: Vec<(usize, usize)>,
 }
 
 impl Dijkstra {
-    pub fn connect(&mut self, tx: Sender<DijkstraUpdate>) {
+    pub fn connect_selected(
+        &mut self,
+        command_rx: &Receiver<DijkstraCommand>,
+        tx: Sender<DijkstraUpdate>,
+    ) {
+        while let Ok(command) = command_rx.recv() {
+            println!("Received command to connect {:?} to {:?}", command.a, command.b);
+            let path = self.connect_once(command.a, &vec![&command.b], &tx);
+            if path.is_empty() {
+                continue;
+            }
+            for (a, b) in path.iter() {
+                self.road_level[a.0][a.1] = 1;
+                self.road_level[b.0][b.1] = 1;
+            }
+        }
+    }
+
+    pub fn connect_randoms_forever(&mut self, tx: Sender<DijkstraUpdate>) {
         let mut rng = rand::rng();
         let mut houses = HashSet::new();
         let mut lakeside_points = Vec::new();
-        for r in 1..(self.height-1) {
-            for c in 1..(self.width-1) {
+        for r in 5..(self.height - 5) {
+            for c in 5..(self.width - 5) {
                 if self.is_water[r][c] {
                     continue;
                 }
-                if self.is_water[r - 1][c]
-                    || self.is_water[r + 1][c]
-                    || self.is_water[r][c - 1]
-                    || self.is_water[r][c + 1]
-                {
-                    lakeside_points.push((r, c));
+                'outer: for dr in -5..=5 {
+                    for dc in -5..=5 {
+                        if r as isize + dr < 0
+                            || c as isize + dc < 0
+                            || r as isize + dr >= self.height as isize
+                            || c as isize + dc >= self.width as isize
+                        {
+                            continue;
+                        }
+                        let nr = r as isize + dr;
+                        let nc = c as isize + dc;
+                        if self.is_water[nr as usize][nc as usize] {
+                            lakeside_points.push((r, c));
+                            break 'outer;
+                        }
+                    }
                 }
             }
         }
         lakeside_points.shuffle(&mut rng);
-        const PATHS_AT_ONCE: usize = 5;
+        const PATHS_AT_ONCE: usize = 1;
         for _ in 0..2 * PATHS_AT_ONCE {
             houses.insert(lakeside_points.pop().unwrap());
         }

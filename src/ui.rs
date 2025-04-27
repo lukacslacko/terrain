@@ -1,14 +1,17 @@
-use crate::dijkstra::DijkstraUpdate;
+use crate::dijkstra::{self, DijkstraCommand, DijkstraUpdate};
 use crate::state::*;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::input::common_conditions::*;
 use bevy::input::keyboard::KeyCode;
-use bevy::input::mouse::{MouseMotion, MouseWheel};
+use bevy::input::mouse::{MouseButtonInput, MouseMotion, MouseWheel};
 use bevy::prelude::*;
+use bevy::render::camera;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::{TextureDimension, TextureFormat};
-use crossbeam_channel::{Receiver, bounded};
+use bevy::render::view::window;
+use bevy::state::state;
+use crossbeam_channel::{Receiver, Sender, bounded};
 
 pub fn init(width: usize, height: usize) {
     App::new()
@@ -32,6 +35,14 @@ pub fn init(width: usize, height: usize) {
         )
         .add_systems(FixedUpdate, read_dijkstra_stream)
         .add_systems(Update, process_dijkstra_updates)
+        .add_systems(
+            Update,
+            on_mouse_left_click.run_if(input_just_pressed(MouseButton::Left)),
+        )
+        .add_systems(
+            Update,
+            on_mouse_right_click.run_if(input_just_pressed(MouseButton::Right)),
+        )
         .run();
 }
 
@@ -43,6 +54,12 @@ struct DijkstraReceiver(Receiver<DijkstraUpdate>);
 
 #[derive(Event)]
 struct DijkstraEvent(DijkstraUpdate);
+
+#[derive(Resource)]
+struct DijkstraCommandHolder(DijkstraCommand);
+
+#[derive(Resource)]
+struct DijkstraCommandSender(Sender<DijkstraCommand>);
 
 fn read_dijkstra_stream(
     dijkstra_receiver: Res<DijkstraReceiver>,
@@ -82,14 +99,21 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, map_state: R
     let image_handle = images.add(image).clone();
 
     let (tx, rx) = bounded::<DijkstraUpdate>(1);
+    let (tx_command, rx_command) = bounded::<DijkstraCommand>(1);
+    commands.insert_resource(DijkstraCommandSender(tx_command));
+    commands.insert_resource(DijkstraCommandHolder(DijkstraCommand {
+        a: (0, 0),
+        b: (0, 0),
+    }));
     let mut other_dijkstra = map_state.dijkstra.clone();
     std::thread::spawn(move || {
-        other_dijkstra.connect(tx);
+        // other_dijkstra.connect_randoms_forever(tx);
+        other_dijkstra.connect_selected(&rx_command, tx);
     });
     commands.insert_resource(DijkstraReceiver(rx));
 
     commands.insert_resource(ImageHandle(image_handle.clone()));
-    commands.insert_resource(GameTime { time: 0.0 });
+    commands.insert_resource(GameTime { _time: 0.0 });
 
     commands.spawn(Sprite::from_image(image_handle));
 
@@ -105,6 +129,47 @@ fn pan_camera(
         transform.0.translation.x -= event.delta.x * transform.0.scale.x;
         transform.0.translation.y += event.delta.y * transform.0.scale.y;
     }
+}
+
+fn on_mouse_left_click(
+    query: Query<(&GlobalTransform, &Camera, &MainCamera)>,
+    windows: Query<&Window>,
+    state: Res<MapState>,
+    mut dijkstra_command_holder: ResMut<DijkstraCommandHolder>,
+) {
+    let (global_transform, camera, _) = query.single();
+    let window = windows.single();
+    let cursor_position = window.cursor_position().unwrap();
+    if let Ok(ray) = camera.viewport_to_world_2d(global_transform, cursor_position) {
+        let x = (ray.x + state.dijkstra.width as f32 / 2.0)
+            .clamp(0.0, state.dijkstra.width as f32 - 1.0) as usize;
+        let y = (-ray.y + state.dijkstra.height as f32 / 2.0)
+            .clamp(0.0, state.dijkstra.height as f32 - 1.0) as usize;
+        dijkstra_command_holder.0.a = (y, x);
+    }
+}
+
+fn on_mouse_right_click(
+    query: Query<(&GlobalTransform, &Camera, &MainCamera)>,
+    windows: Query<&Window>,
+    state: Res<MapState>,
+    mut dijkstra_command_holder: ResMut<DijkstraCommandHolder>,
+    dijkstra_command_sender: Res<DijkstraCommandSender>,
+) {
+    let (global_transform, camera, _) = query.single();
+    let window = windows.single();
+    let cursor_position = window.cursor_position().unwrap();
+    if let Ok(ray) = camera.viewport_to_world_2d(global_transform, cursor_position) {
+        let x = (ray.x + state.dijkstra.width as f32 / 2.0)
+            .clamp(0.0, state.dijkstra.width as f32 - 1.0) as usize;
+        let y = (-ray.y + state.dijkstra.height as f32 / 2.0)
+            .clamp(0.0, state.dijkstra.height as f32 - 1.0) as usize;
+        dijkstra_command_holder.0.b = (y, x);
+    }
+    let _ = dijkstra_command_sender
+        .0
+        .send(dijkstra_command_holder.0.clone())
+        .unwrap();
 }
 
 fn zoom_camera_around_cursor(
