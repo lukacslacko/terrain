@@ -198,8 +198,13 @@ fn zoom_camera_around_cursor(
 ) {
     let mut transform = query.single_mut();
     for event in scroll_event_reader.read() {
-        transform.0.scale.x *= 1.0 + event.y;
-        transform.0.scale.y *= 1.0 + event.y;
+        let s = if event.y < 0.0 {
+            1.1
+        } else {
+            1.0 / 1.1
+        };
+        transform.0.scale.x *= s;
+        transform.0.scale.y *= s;
     }
 }
 
