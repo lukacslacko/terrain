@@ -1,16 +1,14 @@
-use crate::dijkstra::{self, DijkstraCommand, DijkstraUpdate};
+use crate::dijkstra::{DijkstraCommand, DijkstraUpdate};
 use crate::state::*;
+use crate::train::Train;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::input::common_conditions::*;
 use bevy::input::keyboard::KeyCode;
-use bevy::input::mouse::{MouseButtonInput, MouseMotion, MouseWheel};
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
-use bevy::render::camera;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::{TextureDimension, TextureFormat};
-use bevy::render::view::window;
-use bevy::state::state;
 use bevy::window::SystemCursorIcon;
 use bevy::winit::cursor::CursorIcon;
 use crossbeam_channel::{Receiver, Sender, bounded};
@@ -45,6 +43,7 @@ pub fn init(width: usize, height: usize) {
             Update,
             on_mouse_right_click.run_if(input_just_pressed(MouseButton::Right)),
         )
+        .add_systems(Update, update_trains)
         .run();
 }
 
@@ -80,12 +79,53 @@ fn process_dijkstra_updates(
     win_entity: Single<Entity, With<Window>>,
     mut map_state: ResMut<MapState>,
 ) {
-    let image = images.get_mut(&image_handle.0).unwrap();
     for event in event_reader.read() {
+        let image = images.get_mut(&image_handle.0).unwrap();
         commands
             .entity(*win_entity)
             .insert(CursorIcon::from(SystemCursorIcon::Default));
-        map_state.process_dijsktra_update(&event.0, image);
+        let path = map_state.process_dijsktra_update(&event.0, image);
+
+        // create a train that moves along the path
+        let train_sprite_img = Image::new_fill(
+            Extent3d {
+                width: 5 as u32,
+                height: 5 as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            &Srgba::new(0.9, 0.9, 0.9, 1.0).to_u8_array(),
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        );
+        let train_sprite_handle = images.add(train_sprite_img).clone();
+        commands.spawn((Sprite::from_image(train_sprite_handle), Train::new(path)));
+    }
+}
+
+fn update_trains(
+    map_state: ResMut<MapState>,
+    mut train_query: Query<(&mut Transform, &mut Train)>,
+) {
+    for (mut transform, mut train) in &mut train_query {
+        if train.index == (train.path.len() - 1) && train.forward {
+            train.forward = false;
+            continue;
+        } else if train.index == 0 && !train.forward {
+            train.forward = true;
+            continue;
+        }
+        if train.forward {
+            train.index += 1;
+        } else {
+            train.index = train.index.saturating_sub(1);
+        }
+
+        transform.translation.x =
+            train.path[train.index].1 as f32 - (map_state.dijkstra.width as f32) * 0.5;
+        transform.translation.y =
+            -1.0 * train.path[train.index].0 as f32 + (map_state.dijkstra.height as f32) * 0.5;
+        transform.translation.z = 10.0;
     }
 }
 
@@ -198,11 +238,7 @@ fn zoom_camera_around_cursor(
 ) {
     let mut transform = query.single_mut();
     for event in scroll_event_reader.read() {
-        let s = if event.y < 0.0 {
-            1.1
-        } else {
-            1.0 / 1.1
-        };
+        let s = if event.y < 0.0 { 1.1 } else { 1.0 / 1.1 };
         transform.0.scale.x *= s;
         transform.0.scale.y *= s;
     }

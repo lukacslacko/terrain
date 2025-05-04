@@ -1,7 +1,10 @@
+use bevy::prelude::*;
+
+#[derive(Component)]
 pub struct Train {
-    path: Vec<(usize, usize)>,
-    index: usize,
-    forward: bool,
+    pub path: Vec<(usize, usize)>,
+    pub index: usize,
+    pub forward: bool,
 }
 
 impl Train {

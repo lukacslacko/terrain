@@ -1,6 +1,5 @@
 use crate::dijkstra::{Dijkstra, DijkstraUpdate};
 use crate::terrain::height_map;
-use crate::train::Train;
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -18,7 +17,6 @@ pub struct MapState {
     stations: HashSet<(usize, usize)>,
     min_height: f32,
     max_height: f32,
-    trains: Vec<Train>,
 }
 
 impl MapState {
@@ -40,9 +38,9 @@ impl MapState {
         points_with_height.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         let is_edge =
             |row: usize, col: usize| row == 0 || col == 0 || row == height - 1 || col == width - 1;
-        let mut points_handled = 0;
+        // let mut points_handled = 0;
         for (h, row, col) in points_with_height {
-            points_handled += 1;
+            // points_handled += 1;
             let neighbor_lake_ids = [
                 (row.saturating_sub(1), col),
                 ((row + 1).min(height - 1), col),
@@ -66,7 +64,7 @@ impl MapState {
             if neighbor_lake_ids.is_empty() {
                 lake_id[row][col] = next_lake_id;
                 is_water[row][col] = true;
-                println!("Lakes: {}", next_lake_id);
+                // println!("Lakes: {}", next_lake_id);
                 actual_lake_id.insert(next_lake_id, next_lake_id);
                 lake_level.insert(next_lake_id, h);
                 next_lake_id += 1;
@@ -161,6 +159,8 @@ impl MapState {
             }
         }
 
+        println!("Lakes found: {}", next_lake_id);
+
         for row in 0..height {
             for col in 0..width {
                 if lake_id[row][col] != 0 {
@@ -194,11 +194,14 @@ impl MapState {
             min_height,
             max_height,
             stations: HashSet::new(),
-            trains: Vec::new(),
         }
     }
 
-    pub fn process_dijsktra_update(&mut self, update: &DijkstraUpdate, image: &mut Image) {
+    pub fn process_dijsktra_update(
+        &mut self,
+        update: &DijkstraUpdate,
+        image: &mut Image,
+    ) -> Vec<(usize, usize)> {
         let mut path = Vec::new();
         for (start, end) in update.path.iter() {
             let dist = (((start.0 as isize - end.0 as isize).pow(2)
@@ -251,7 +254,7 @@ impl MapState {
                 }
             }
         }
-        self.trains.push(Train::new(path));
+        path
     }
 
     pub fn near_station(&self, row: usize, col: usize) -> Option<(usize, usize)> {
