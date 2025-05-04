@@ -1,5 +1,6 @@
 use crate::dijkstra::{Dijkstra, DijkstraUpdate};
 use crate::terrain::height_map;
+use crate::train::Train;
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -17,6 +18,7 @@ pub struct MapState {
     stations: HashSet<(usize, usize)>,
     min_height: f32,
     max_height: f32,
+    trains: Vec<Train>,
 }
 
 impl MapState {
@@ -192,10 +194,12 @@ impl MapState {
             min_height,
             max_height,
             stations: HashSet::new(),
+            trains: Vec::new(),
         }
     }
 
     pub fn process_dijsktra_update(&mut self, update: &DijkstraUpdate, image: &mut Image) {
+        let mut path = Vec::new();
         for (start, end) in update.path.iter() {
             let dist = (((start.0 as isize - end.0 as isize).pow(2)
                 + (start.1 as isize - end.1 as isize).pow(2)) as f32)
@@ -203,7 +207,7 @@ impl MapState {
             let height_diff =
                 self.dijkstra.height_map[start.0][start.1] - self.dijkstra.height_map[end.0][end.1];
             let steepness = 2000.0 * (height_diff / dist).abs();
-            let (r,g,b) = match steepness {
+            let (r, g, b) = match steepness {
                 0.0..=0.5 => (255, 255, 255),
                 0.5..=1.0 => (255, 128, 0),
                 1.0..=2.0 => (255, 0, 0),
@@ -223,6 +227,7 @@ impl MapState {
                 }
                 row = (row as isize + (end.0 as isize - row as isize).signum()) as usize;
                 col = (col as isize + (end.1 as isize - col as isize).signum()) as usize;
+                path.push((row, col));
             }
         }
         for &(row, col) in update.houses.iter() {
@@ -246,6 +251,7 @@ impl MapState {
                 }
             }
         }
+        self.trains.push(Train::new(path));
     }
 
     pub fn near_station(&self, row: usize, col: usize) -> Option<(usize, usize)> {
